@@ -98,3 +98,12 @@ export const CARRY_DISHES_SPEED = 0.85;
 export const WASH_TIME = 3;
 /** Plates washed per Dishes task before the washer re-picks work. */
 export const WASH_CHUNK = 8;
+
+// Recipe mastery (PLAN §7.1), by star reached
+export const MASTERY_SERVINGS_1 = 0.1;
+export const MASTERY_COOK_MULT_2 = 0.9;
+export const MASTERY_QUALITY_3 = 0.05;
+export const MASTERY_SERVINGS_4 = 0.1;
+/** ★5 signature dish: price and appeal multipliers. */
+export const SIGNATURE_PRICE = 1.1;
+export const SIGNATURE_APPEAL = 1.25;

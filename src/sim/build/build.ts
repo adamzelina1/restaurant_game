@@ -5,6 +5,7 @@ import { stationDef } from '../../data/stations';
 import { footprint, inBounds, isFloor, seatTiles, workTiles, type Tile } from '../grid/grid';
 import { placeObject } from '../newGame';
 import { validateLayout } from './analysis';
+import { objectValue } from '../progression/progression';
 import { Floor, type GameState, type Id, type PlacedObject, type Rot } from '../state';
 import { message, spend, values } from '../util';
 
@@ -117,7 +118,7 @@ export function sellObject(state: GameState, id: Id): boolean {
     message(state, `Can't sell: ${busy.toLowerCase()}`, 'warn');
     return false;
   }
-  const refund = Math.floor(stationDef(o.type).cost * SELL_REFUND);
+  const refund = Math.floor(objectValue(o) * SELL_REFUND);
   state.money += refund;
   // Dirty plates on a sold table are rinsed and kept.
   if (o.table) state.plates.clean += o.table.dirty;

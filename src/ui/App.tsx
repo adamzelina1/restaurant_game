@@ -6,6 +6,7 @@ import { useLive } from './hooks';
 import { Menu } from './Menu';
 import { Messages } from './Messages';
 import { RecipePicker } from './RecipePicker';
+import { RecipeBook } from './RecipeBook';
 import { SelectionPanel } from './SelectionPanel';
 import { StaffPanel } from './StaffPanel';
 import { BuildPanel } from './BuildPanel';
@@ -46,6 +47,7 @@ export function App({ runner }: { runner: GameRunner }) {
       <BuildPanel runner={runner} />
       <Messages runner={runner} />
       <RecipePicker runner={runner} />
+      <RecipeBook runner={runner} />
       <StaffPanel runner={runner} />
       <HiringPanel runner={runner} />
       <Menu runner={runner} />

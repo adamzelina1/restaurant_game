@@ -2,7 +2,6 @@
 // wait for food → eat → pay + tip → leave. Parties share a table.
 
 import { STAFF_COLORS } from '../../data/names';
-import { recipe } from '../../data/recipes';
 import { clearGoal, isAt, setGoal, type AgentRef } from '../agents/movement';
 import {
   BASE_PARTY_INTERVAL,
@@ -22,6 +21,7 @@ import { varietyMult } from '../economy/demand';
 import { distance } from '../grid/distance';
 import { DIRS, allObjects, canStepStatic, layout, objectsOfKind, seatTiles, workTile, workTiles, type Tile } from '../grid/grid';
 import { reputationTrafficMult, rateVisit } from '../reputation/reputation';
+import { servingPrice } from '../progression/progression';
 import { pick, randRange, weightedPick } from '../rng';
 import { traitTipMult } from '../staff/traits';
 import type { Customer, GameState, Party, PlacedObject } from '../state';
@@ -194,12 +194,12 @@ function pay(state: GameState, p: Party): void {
       rateVisit(state, c.satisfaction);
       continue;
     }
-    const r = recipe(c.dish);
     c.satisfaction = satisfaction(waitedFor(p, c), c.plate.quality, decor);
     const server = c.servedBy ? state.employees[c.servedBy] : null;
-    const tip = Math.round(r.pricePerServing * (0.05 + 0.35 * c.satisfaction) * (server ? traitTipMult(server) : 1) * 100) / 100;
-    state.money += r.pricePerServing + tip;
-    state.stats.revenue += r.pricePerServing;
+    const price = servingPrice(state, c.dish);
+    const tip = Math.round(price * (0.05 + 0.35 * c.satisfaction) * (server ? traitTipMult(server) : 1) * 100) / 100;
+    state.money += price + tip;
+    state.stats.revenue += price;
     state.stats.tips += tip;
     state.stats.servingsSold++;
     state.stats.soldByRecipe[c.dish] = (state.stats.soldByRecipe[c.dish] ?? 0) + 1;

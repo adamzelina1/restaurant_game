@@ -1,18 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { TRAITS } from '../src/data/traits';
-import { newGame } from '../src/sim/newGame';
 import { generateCandidate } from '../src/sim/staff/hiring';
 import { gainXp, xpToNext } from '../src/sim/staff/xp';
 import { WORK_TYPES, type Employee, type GameState } from '../src/sim/state';
 import { runFor, step } from '../src/sim/step';
-import { objOfType, runUntil } from './helpers';
+import { objOfType, runUntil, unlockedGame } from './helpers';
 
 const staff = (s: GameState) => Object.values(s.employees);
 const byName = (s: GameState, n: string) => staff(s).find((e) => e.name === n)!;
 
 describe('skills and XP', () => {
   it('passion multiplies XP and levels raise the wage', () => {
-    const s = newGame();
+    const s = unlockedGame();
     const marco = byName(s, 'Marco'); // Grill passion 2, Prep passion 0
     gainXp(s, marco, 'Prep', 100);
     expect(marco.skills.Prep.xp).toBeCloseTo(35);
@@ -24,7 +23,7 @@ describe('skills and XP', () => {
   });
 
   it('prep work trains the prep skill', () => {
-    const s = newGame();
+    const s = unlockedGame();
     s.money = 5000;
     const pot = objOfType(s, 'stockPot');
     const ana = byName(s, 'Ana');
@@ -36,7 +35,7 @@ describe('skills and XP', () => {
 
 describe('priorities', () => {
   it('work types set to off are never done', () => {
-    const s = newGame();
+    const s = unlockedGame();
     for (const e of staff(s)) step(s, [{ type: 'setPriority', employeeId: e.id, workType: 'Haul', priority: 0 }]);
     const stove = objOfType(s, 'stove');
     step(s, [{ type: 'startBatch', stationId: stove.id, recipeId: 'friedEggs' }]);
@@ -48,7 +47,7 @@ describe('priorities', () => {
   });
 
   it('higher priority tiers are taken first', () => {
-    const s = newGame();
+    const s = unlockedGame();
     const [marco, ana] = [byName(s, 'Marco'), byName(s, 'Ana')];
     // Ana only hauls; Marco only cooks/preps.
     for (const w of WORK_TYPES) {
@@ -67,7 +66,7 @@ describe('priorities', () => {
   });
 
   it('Prima Donna refuses Dishes and Bus', () => {
-    const s = newGame();
+    const s = unlockedGame();
     const e = byName(s, 'Ana');
     e.traits = ['primaDonna'];
     step(s, [{ type: 'setPriority', employeeId: e.id, workType: 'Dishes', priority: 1 }]);
@@ -81,13 +80,13 @@ describe('priorities', () => {
 
 describe('hiring and wages', () => {
   it('candidates are deterministic per seed', () => {
-    const names = (seed: number) => newGame(seed).hiring.candidates.map((c) => c.name).join();
+    const names = (seed: number) => unlockedGame(seed).hiring.candidates.map((c) => c.name).join();
     expect(names(5)).toBe(names(5));
-    expect(newGame(5).hiring.candidates.length).toBeGreaterThanOrEqual(3);
+    expect(unlockedGame(5).hiring.candidates.length).toBeGreaterThanOrEqual(3);
   });
 
   it('candidate skill points lean toward passions', () => {
-    const s = newGame(9);
+    const s = unlockedGame(9);
     let passionLevels = 0;
     let otherLevels = 0;
     let passionCount = 0;
@@ -105,7 +104,7 @@ describe('hiring and wages', () => {
   });
 
   it('hire adds an employee with a preset; fire removes them', () => {
-    const s = newGame();
+    const s = unlockedGame();
     s.money = 1000;
     const c = s.hiring.candidates[0];
     step(s, [{ type: 'hire', index: 0 }]);
@@ -121,7 +120,7 @@ describe('hiring and wages', () => {
   });
 
   it('wages are only charged while open', () => {
-    const s = newGame();
+    const s = unlockedGame();
     s.nextPartyIn = 1e9;
     runFor(s, 600);
     expect(s.stats.wagesPaid).toBe(0);
@@ -136,7 +135,7 @@ describe('hiring and wages', () => {
 
 describe('traits', () => {
   it('clumsy staff drop crates, but everything still gets loaded', () => {
-    const s = newGame(3);
+    const s = unlockedGame(3);
     s.money = 1e6;
     for (const e of staff(s)) e.traits = ['clumsy'];
     // Make drops frequent enough to observe.

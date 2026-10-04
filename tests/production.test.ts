@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { recipe } from '../src/data/recipes';
 import { counterStock } from '../src/sim/counters/counters';
-import { newGame } from '../src/sim/newGame';
 import { runFor, step } from '../src/sim/step';
-import { objOfType, runUntil } from './helpers';
+import { objOfType, runUntil, unlockedGame } from './helpers';
 
 describe('batch cooking loop', () => {
   it('fried eggs: fetch → tend (active) → ready → serve → counter → sold', () => {
-    const s = newGame();
+    const s = unlockedGame();
     const stove = objOfType(s, 'stove');
     const money0 = s.money;
     step(s, [{ type: 'startBatch', stationId: stove.id, recipeId: 'friedEggs' }]);
@@ -38,7 +37,7 @@ describe('batch cooking loop', () => {
   });
 
   it('pancakes: crates are prepped at the mixing bench, then loaded', () => {
-    const s = newGame();
+    const s = unlockedGame();
     const stove = objOfType(s, 'stove');
     step(s, [{ type: 'startBatch', stationId: stove.id, recipeId: 'pancakes' }]);
     const b = s.batches[stove.cook!.batchId!];
@@ -55,7 +54,7 @@ describe('batch cooking loop', () => {
   });
 
   it('a big batch is split into one trip per crate, worked in parallel', () => {
-    const s = newGame();
+    const s = unlockedGame();
     const pot = objOfType(s, 'stockPot');
     s.money = 10000;
     step(s, [{ type: 'startBatch', stationId: pot.id, recipeId: 'beefStew' }]);
@@ -69,7 +68,7 @@ describe('batch cooking loop', () => {
   });
 
   it('cancel refunds half before cooking starts', () => {
-    const s = newGame();
+    const s = unlockedGame();
     const grill = objOfType(s, 'grill');
     const money0 = s.money;
     step(s, [{ type: 'startBatch', stationId: grill.id, recipeId: 'burgers' }]);
@@ -84,7 +83,7 @@ describe('batch cooking loop', () => {
   });
 
   it('serving waits for a free counter', () => {
-    const s = newGame();
+    const s = unlockedGame();
     for (const o of Object.values(s.objects)) {
       if (o.counter) o.counter.recipeId = 'lasagna';
       if (o.counter) o.counter.lots.push({ servings: 5, quality: 1, placedAt: 0, freshFor: 1e9 });
@@ -109,7 +108,7 @@ describe('batch cooking loop', () => {
 
 describe('click speed-up', () => {
   it('removes 1% per click, paced by heat, capped at 25%', () => {
-    const s = newGame();
+    const s = unlockedGame();
     s.money = 10000;
     const grill = objOfType(s, 'grill');
     step(s, [{ type: 'startBatch', stationId: grill.id, recipeId: 'burgers' }]);
@@ -132,7 +131,7 @@ describe('click speed-up', () => {
 describe('determinism', () => {
   it('same seed and commands give identical state', () => {
     const run = () => {
-      const s = newGame(42);
+      const s = unlockedGame(42);
       const stove = objOfType(s, 'stove');
       const pot = objOfType(s, 'stockPot');
       s.money = 5000;
@@ -149,7 +148,7 @@ describe('determinism', () => {
   });
 
   it('state survives a JSON round trip mid-run', () => {
-    const a = newGame(7);
+    const a = unlockedGame(7);
     const stove = objOfType(a, 'stove');
     step(a, [{ type: 'startBatch', stationId: stove.id, recipeId: 'pancakes' }]);
     runFor(a, 30);

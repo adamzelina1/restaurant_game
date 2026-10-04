@@ -286,6 +286,11 @@ export class WorldScene extends Phaser.Scene {
     const ny = cy + Math.sign(wt.y * TILE + TILE / 2 - cy) * (h * TILE * 0.5 - 4);
     g.fillStyle(0xffffff, 0.5);
     g.fillCircle(nx, ny, 2);
+    // Equipment tier pips along the bottom edge.
+    for (let i = 1; i < obj.tier; i++) {
+      g.fillStyle(0xffd966, 1);
+      g.fillRect(px + w * TILE - 6 - (i - 1) * 5, py + h * TILE - 7, 3, 3);
+    }
   }
 
   private drawDynamic(s: GameState): void {

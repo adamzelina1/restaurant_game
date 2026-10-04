@@ -2,30 +2,24 @@ import { recipe, totalCrates } from '../../data/recipes';
 import { stationDef } from '../../data/stations';
 import { CANCEL_REFUND, CLICK_CAP_FRACTION } from '../constants';
 import { computeBatchQuality, decayedQuality, readyGrace } from '../quality';
+import { masteryCookMult, masteryQuality, masteryServings, masteryStars, tierServings, tierSpeed } from '../progression/progression';
 import type { Batch, Crate, GameState, Id, PlacedObject } from '../state';
 import { abandonTask, createTask, deleteTask } from '../tasks/tasks';
 import { message, newId, spend, values } from '../util';
 
-/** Cook speed multiplier from the station's equipment tier. */
-export function tierSpeed(tier: number): number {
-  return 1 + 0.15 * (tier - 1);
-}
-
-/** Extra servings fraction from the station's equipment tier. */
-export function tierServings(tier: number): number {
-  return 0.1 * (tier - 1);
-}
-
-export function batchServings(recipeId: string, station: PlacedObject): number {
+/** Servings a batch yields on this station: tier and mastery add servings, not crates. */
+export function batchServings(state: GameState, recipeId: string, station: PlacedObject): number {
   const r = recipe(recipeId);
-  return Math.round(r.servings * (1 + tierServings(station.tier)));
+  const bonus = tierServings(station.tier) + masteryServings(masteryStars(state, recipeId));
+  return Math.round(r.servings * (1 + bonus));
 }
 
 /** Seconds of cooking needed on this station. */
-export function batchCookTime(recipeId: string, station: PlacedObject): number {
+export function batchCookTime(state: GameState, recipeId: string, station: PlacedObject): number {
   const r = recipe(recipeId);
+  const mastery = masteryCookMult(masteryStars(state, recipeId));
   // Active recipes progress at the tender's skill speed; tier speeds up passive ones.
-  return r.cookMode === 'active' ? r.cookTime : r.cookTime / tierSpeed(station.tier);
+  return r.cookMode === 'active' ? r.cookTime * mastery : (r.cookTime * mastery) / tierSpeed(station.tier);
 }
 
 export function canStartBatch(state: GameState, stationId: Id, recipeId: string): string | null {
@@ -48,7 +42,7 @@ export function startBatch(state: GameState, stationId: Id, recipeId: string): b
   const st = state.objects[stationId];
   const r = recipe(recipeId);
   spend(state, r.batchCost);
-  const cookTime = batchCookTime(recipeId, st);
+  const cookTime = batchCookTime(state, recipeId, st);
   const b: Batch = {
     id: newId(state, 'b'),
     recipeId,
@@ -60,7 +54,7 @@ export function startBatch(state: GameState, stationId: Id, recipeId: string): b
     cookDone: 0,
     clickRemoved: 0,
     clickCap: CLICK_CAP_FRACTION * cookTime,
-    servings: batchServings(recipeId, st),
+    servings: batchServings(state, recipeId, st),
     quality: 0,
     prepSkillSum: 0,
     prepSkillCount: 0,
@@ -158,7 +152,7 @@ export function tickCooking(state: GameState, dt: number): void {
       const st = state.objects[b.stationId];
       b.phase = 'ready';
       b.readyAt = state.time;
-      b.quality = computeBatchQuality(b, st?.tier ?? 1);
+      b.quality = Math.min(1, computeBatchQuality(b, st?.tier ?? 1) + masteryQuality(masteryStars(state, b.recipeId)));
       message(state, `${r.name} is ready! Click the ${stationDef(r.station).name} to serve it.`, 'good');
     }
   }

@@ -1,10 +1,11 @@
 import { QUALITY_DECAY_TAU, QUALITY_FLOOR, READY_GRACE_FRACTION, READY_GRACE_MIN } from './constants';
+import { tierQuality } from './progression/progression';
 import type { Batch } from './state';
 import { clamp } from './util';
 
 /** Base batch quality (0–1) from the skills that went into it and the station tier. */
 export function batchQuality(prepSkill: number, cookSkill: number, tier: number): number {
-  return clamp(0.3 + 0.03 * cookSkill + 0.015 * prepSkill + 0.05 * (tier - 1), 0, 1);
+  return clamp(0.3 + 0.03 * cookSkill + 0.015 * prepSkill + tierQuality(tier), 0, 1);
 }
 
 export function computeBatchQuality(b: Batch, tier: number): number {

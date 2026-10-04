@@ -4,6 +4,7 @@
 import { RECIPE_LIST } from '../src/data/recipes';
 import type { Command } from '../src/sim/commands';
 import { canStartBatch } from '../src/sim/production/batches';
+import { unlockError } from '../src/sim/progression/progression';
 import type { GameState } from '../src/sim/state';
 
 export type Strategy = 'short' | 'long' | 'best';
@@ -19,8 +20,17 @@ function chooseRecipe(state: GameState, stationType: string, strategy: Strategy,
   return options[0].id;
 }
 
+/** Money the bot keeps back for ingredients when buying unlocks. */
+const RESERVE = 300;
+
 export function botCommands(state: GameState, strategy: Strategy): Command[] {
   const out: Command[] = [];
+  for (const r of RECIPE_LIST) {
+    if (!unlockError(state, r.id) && state.money >= r.unlock.cost + RESERVE) {
+      out.push({ type: 'unlockRecipe', recipeId: r.id });
+      return out;
+    }
+  }
   for (const o of Object.values(state.objects)) {
     if (!o.cook) continue;
     const b = o.cook.batchId ? state.batches[o.cook.batchId] : null;

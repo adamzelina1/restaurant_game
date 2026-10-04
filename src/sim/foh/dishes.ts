@@ -13,7 +13,7 @@ import {
 } from '../constants';
 import { distance } from '../grid/distance';
 import { objectsOfKind, workTile, type Tile } from '../grid/grid';
-import { tierSpeed } from '../production/batches';
+import { tierSpeed } from '../progression/progression';
 import type { Employee, GameState, Id, PlacedObject, Task } from '../state';
 import { createTask } from '../tasks/tasks';
 import { goTo, timed, type Outcome } from '../tasks/toils';

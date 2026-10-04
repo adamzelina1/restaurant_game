@@ -2,6 +2,7 @@ import { buyObject, moveObject, paintTiles, sellObject, type FloorTool } from '.
 import { buyPlates } from './foh/dishes';
 import type { Tile } from './grid/grid';
 import { cancelBatch, requestServe, startBatch } from './production/batches';
+import { unlockRecipe, upgradeObject } from './progression/progression';
 import { fire, hire, paidRefresh, presetPriorities, setPriority } from './staff/hiring';
 import { WORK_TYPES, type GameState, type Id, type Priority, type Rot, type WorkType } from './state';
 import { speedUp } from './stations/stations';
@@ -24,7 +25,9 @@ export type Command =
   | { type: 'sellObject'; id: Id }
   | { type: 'paintFloor'; tiles: Tile[]; tool: FloorTool }
   | { type: 'resetHeatmaps' }
-  | { type: 'buyPlates' };
+  | { type: 'buyPlates' }
+  | { type: 'unlockRecipe'; recipeId: string }
+  | { type: 'upgradeObject'; id: Id };
 
 export function applyCommand(state: GameState, cmd: Command): boolean {
   switch (cmd.type) {
@@ -55,6 +58,10 @@ export function applyCommand(state: GameState, cmd: Command): boolean {
       return sellObject(state, cmd.id);
     case 'paintFloor':
       return paintTiles(state, cmd.tiles, cmd.tool);
+    case 'unlockRecipe':
+      return unlockRecipe(state, cmd.recipeId);
+    case 'upgradeObject':
+      return upgradeObject(state, cmd.id);
     case 'buyPlates':
       return buyPlates(state);
     case 'resetHeatmaps':

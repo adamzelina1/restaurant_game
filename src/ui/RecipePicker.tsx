@@ -2,7 +2,9 @@ import { RECIPE_LIST, totalCrates } from '../data/recipes';
 import { stationDef } from '../data/stations';
 import type { GameRunner } from '../game/runner';
 import { batchCookTime, batchServings, canStartBatch } from '../sim/production/batches';
+import { isUnlocked, servingPrice } from '../sim/progression/progression';
 import { formatMoney, formatSpan, hex } from './format';
+import { Mastery, UnlockButton } from './RecipeBook';
 import { ui } from './store';
 
 export function RecipePicker({ runner }: { runner: GameRunner }) {
@@ -34,15 +36,18 @@ export function RecipePicker({ runner }: { runner: GameRunner }) {
               <th title="Revenue per hour of station time">$/hour</th>
               <th title="How long servings stay fresh on the counter">Fresh</th>
               <th title="One trip from the fridge per crate">Crates</th>
+              <th title="Every batch served to a counter fills the mastery bar">Mastery</th>
               <th />
             </tr>
           </thead>
           <tbody>
             {recipes.map((r) => {
-              const cook = batchCookTime(r.id, st);
-              const servings = batchServings(r.id, st);
-              const perHour = (servings * r.pricePerServing) / (cook / 3600);
+              const cook = batchCookTime(s, r.id, st);
+              const servings = batchServings(s, r.id, st);
+              const price = servingPrice(s, r.id);
+              const perHour = (servings * price) / (cook / 3600);
               const err = canStartBatch(s, st.id, r.id);
+              const unlocked = isUnlocked(s, r.id);
               return (
                 <tr class={err ? 'disabled' : ''}>
                   <td>
@@ -52,12 +57,16 @@ export function RecipePicker({ runner }: { runner: GameRunner }) {
                   </td>
                   <td>{formatSpan(cook)}</td>
                   <td>{servings}</td>
-                  <td>{formatMoney(r.pricePerServing)}</td>
+                  <td>{formatMoney(price)}</td>
                   <td>{formatMoney(r.batchCost)}</td>
                   <td>{formatMoney(perHour)}</td>
                   <td>{formatSpan(r.freshFor)}</td>
                   <td>{totalCrates(r)}</td>
+                  <td>{unlocked && <Mastery s={s} recipeId={r.id} />}</td>
                   <td>
+                    {!unlocked ? (
+                      <UnlockButton runner={runner} recipeId={r.id} />
+                    ) : (
                     <button
                       class="btn primary small"
                       disabled={!!err}
@@ -69,6 +78,7 @@ export function RecipePicker({ runner }: { runner: GameRunner }) {
                     >
                       Cook
                     </button>
+                    )}
                   </td>
                 </tr>
               );

@@ -11,6 +11,8 @@ import { PASS_CAPACITY, PLATE_PACK, PLATE_PACK_COST } from '../sim/constants';
 import { patienceUsed } from '../sim/foh/customers';
 import { seatTiles } from '../sim/grid/grid';
 import { speedUpTarget } from '../sim/stations/stations';
+import { canUpgrade, nextTier, upgradeError } from '../sim/progression/progression';
+import { MAX_TIER, TIER_EFFECTS } from '../data/equipment';
 import { describeCrate, describeCustomer, describeEmployee } from './describe';
 import { formatDuration, formatMoney, hex, pct } from './format';
 import { TRAITS } from '../data/traits';
@@ -50,12 +52,13 @@ function ObjectView({ runner, o, close }: { runner: GameRunner; o: PlacedObject;
       <div class="modal-head">
         <h3>
           {def.name}
-          {def.kind === 'cook' && <span class="muted"> · tier {o.tier}</span>}
+          {canUpgrade(o) && <span class="muted"> · tier {o.tier}</span>}
         </h3>
         <button class="btn small" onClick={close}>
           ✕
         </button>
       </div>
+      {canUpgrade(o) && <UpgradeRow runner={runner} o={o} />}
       {def.kind === 'cook' && <CookView runner={runner} o={o} />}
       {def.kind === 'prep' && <PrepView runner={runner} o={o} />}
       {def.kind === 'counter' && <CounterView s={s} o={o} />}
@@ -73,6 +76,41 @@ function ObjectView({ runner, o, close }: { runner: GameRunner; o: PlacedObject;
       {def.kind === 'host' && <p class="muted">Guests wait here for a free table.</p>}
       {def.kind === 'entrance' && <p class="muted">Guests come and go through here.</p>}
       {def.kind === 'decor' && <p class="muted">Guests at nearby tables are a little happier.</p>}
+    </div>
+  );
+}
+
+const TIER_TEXT: Record<string, string> = {
+  cook: `+${TIER_EFFECTS.speed * 100}% cook speed, +${TIER_EFFECTS.servings * 100}% servings, +${TIER_EFFECTS.quality * 100}% quality`,
+  prep: `+${TIER_EFFECTS.speed * 100}% prep speed`,
+  dishpit: `+${TIER_EFFECTS.speed * 100}% washing speed`,
+};
+
+/** Equipment tier and the next upgrade (PLAN §7). */
+function UpgradeRow({ runner, o }: { runner: GameRunner; o: PlacedObject }) {
+  const next = nextTier(o);
+  const kind = stationDef(o.type).kind;
+  const pips = '◆'.repeat(o.tier) + '◇'.repeat(MAX_TIER - o.tier);
+  if (!next) {
+    return (
+      <div class="tier-row">
+        <span class="stars">{pips}</span> <span class="muted">Top tier</span>
+      </div>
+    );
+  }
+  const err = upgradeError(runner.state, o);
+  return (
+    <div class="tier-row">
+      <span class="stars">{pips}</span>
+      <button
+        class="btn small primary"
+        disabled={!!err}
+        title={`${err ? err + '. ' : ''}Each tier: ${TIER_TEXT[kind]}`}
+        onClick={() => runner.send({ type: 'upgradeObject', id: o.id })}
+      >
+        ⬆ Tier {next.tier}: {formatMoney(next.cost)}
+        {next.minStars > 1 && ` · ${next.minStars}★`}
+      </button>
     </div>
   );
 }

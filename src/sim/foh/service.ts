@@ -12,6 +12,7 @@ import {
   SERVE_TIME,
 } from '../constants';
 import { counterAvailable, counters, lotQuality, takeServingFrom } from '../counters/counters';
+import { dishAppeal } from '../progression/progression';
 import { randRange, weightedPick } from '../rng';
 import { empWorkSpeed, skillLevel } from '../skills';
 import { gainXp } from '../staff/xp';
@@ -57,7 +58,7 @@ export function chooseDishes(state: GameState, party: Party): void {
     const options = [...new Set(counters(state).map((o) => o.counter!.recipeId).filter((r): r is string => !!r))].filter(
       (r) => counters(state).some((o) => o.counter!.recipeId === r && counterAvailable(o) > 0),
     );
-    const dish = weightedPick(state, options, (r) => recipe(r).appeal * (0.5 + availableQuality(state, r)));
+    const dish = weightedPick(state, options, (r) => dishAppeal(state, r) * (0.5 + availableQuality(state, r)));
     if (!dish) continue;
     const counter = reserveServing(state, dish);
     if (!counter) continue;

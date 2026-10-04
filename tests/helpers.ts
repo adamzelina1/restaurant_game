@@ -1,3 +1,5 @@
+import { RECIPE_LIST } from '../src/data/recipes';
+import { newGame } from '../src/sim/newGame';
 import { step } from '../src/sim/step';
 import type { GameState, PlacedObject } from '../src/sim/state';
 
@@ -15,4 +17,11 @@ export function runUntil(state: GameState, pred: () => boolean, maxSeconds: numb
     step(state);
   }
   return state.time - start;
+}
+
+/** A new game with every recipe unlocked (for tests about cooking, not progression). */
+export function unlockedGame(seed?: number): GameState {
+  const s = newGame(seed);
+  s.unlockedRecipes = RECIPE_LIST.map((r) => r.id);
+  return s;
 }

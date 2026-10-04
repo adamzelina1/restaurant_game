@@ -4,7 +4,7 @@ import type { Id, Rot } from '../sim/state';
 
 export type Selection = { kind: 'object'; id: Id } | { kind: 'employee'; id: Id } | { kind: 'customer'; id: Id } | null;
 
-export type Modal = 'staff' | 'hiring' | null;
+export type Modal = 'staff' | 'hiring' | 'recipes' | null;
 
 export type BuildTool = 'select' | 'place' | 'floor' | 'sell';
 

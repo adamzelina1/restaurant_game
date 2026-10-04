@@ -1,7 +1,7 @@
-import { RECIPE_LIST } from '../data/recipes';
 import { STARTER, type Placement, type StarterStaff } from '../data/starter';
 import { stationDef } from '../data/stations';
 import { START_PLATES } from './constants';
+import { starterRecipes } from './progression/progression';
 import { createRng } from './rng';
 import { addEmployee, refreshCandidates } from './staff/hiring';
 import { wageFor } from './staff/xp';
@@ -17,7 +17,7 @@ import {
 } from './state';
 import { newId } from './util';
 
-export const STATE_VERSION = 5;
+export const STATE_VERSION = 6;
 
 const FLOOR_OF = { floor: Floor.Open, wall: Floor.Wall } as const;
 
@@ -41,7 +41,8 @@ export function emptyState(width: number, height: number, seed: number): GameSta
     heat: 0,
     nextPartyIn: 10,
     plates: { clean: START_PLATES, total: START_PLATES },
-    unlockedRecipes: RECIPE_LIST.map((r) => r.id),
+    unlockedRecipes: starterRecipes(),
+    mastery: {},
     reputation: 1,
     hiring: { candidates: [], refreshAt: 0 },
     messages: [],

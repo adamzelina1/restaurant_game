@@ -9,6 +9,7 @@ import { runBus, runWash } from '../foh/dishes';
 import { runPlate, runServe, runTakeOrder } from '../foh/service';
 import { workTile } from '../grid/grid';
 import { onCrateLoaded, readyBatchQuality } from '../production/batches';
+import { recordBatchServed, tierSpeed } from '../progression/progression';
 import { empWorkSpeed, qualityLevel } from '../skills';
 import { gainXp } from '../staff/xp';
 import type { Employee, GameState, Task } from '../state';
@@ -79,7 +80,7 @@ function runPrep(state: GameState, emp: Employee, t: Task, dt: number): Outcome 
     case 1: {
       emp.activity = 'working';
       emp.workingSkill = c.prepSkill;
-      c.prepDone += dt * empWorkSpeed(emp, c.prepSkill!);
+      c.prepDone += dt * empWorkSpeed(emp, c.prepSkill!) * tierSpeed(st.tier);
       gainXp(state, emp, c.prepSkill!, dt);
       if (c.prepDone + c.clickRemoved < c.prepTime) return { r: 'wait' };
       c.prepped = true;
@@ -155,6 +156,7 @@ function runCarryBatch(state: GameState, emp: Employee, t: Task, dt: number): Ou
       tidyCounter(counter);
       emp.carrying = null;
       state.stats.batchesServed++;
+      recordBatchServed(state, b.recipeId);
       delete state.batches[b.id];
       message(state, `${b.servings} servings of ${rec.name} on the counter`);
       return { r: 'done' };

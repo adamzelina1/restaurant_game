@@ -587,3 +587,22 @@ select.preset {
   border-color: #e06666;
   color: #e06666;
 }
+.mastery {
+  white-space: nowrap;
+}
+.mastery .stars {
+  font-size: 11px;
+}
+ol.mastery-list {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+  line-height: 1.7;
+}
+.tier-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 6px 0 10px;
+}

@@ -355,6 +355,8 @@ export interface GameState {
   /** Plates owned (on the rack, in use or dirty) and how many are clean on the rack. */
   plates: { clean: number; total: number };
   unlockedRecipes: string[];
+  /** Batches of each recipe served to a counter (mastery, PLAN §7.1). */
+  mastery: Record<string, number>;
   /** Reputation in stars, 1–5 (continuous). */
   reputation: number;
   hiring: { candidates: Candidate[]; refreshAt: number };

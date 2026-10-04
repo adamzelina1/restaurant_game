@@ -69,6 +69,11 @@ export const MIGRATIONS: Record<number, Migration> = {
     }
     return s;
   },
+  // v6: recipe mastery (existing saves keep every recipe they had unlocked).
+  5: (s) => {
+    s.mastery ??= {};
+    return s;
+  },
 };
 
 export function migrate(state: any): any {
