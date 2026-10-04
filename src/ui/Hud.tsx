@@ -3,7 +3,13 @@ import { HEAT_MAX } from '../sim/constants';
 import { stockByRecipe } from '../sim/counters/counters';
 import { recipe } from '../data/recipes';
 import { formatClock, formatMoney, hex } from './format';
-import { ui } from './store';
+import { enterBuild, exitBuild } from './buildActions';
+import { ui, type Overlay } from './store';
+
+const OVERLAYS: { id: Overlay; label: string; title: string }[] = [
+  { id: 'traffic', label: 'Traffic', title: 'Walking heatmap: where staff walk most' },
+  { id: 'blocking', label: 'Jams', title: 'Blocking heatmap: where staff waited for each other' },
+];
 
 const DEV_SPEEDS = [1, 4, 16, 64];
 
@@ -16,7 +22,7 @@ export function Hud({ runner }: { runner: GameRunner }) {
     <div class="hud panel">
       <div class="hud-money">{formatMoney(s.money)}</div>
       <div class="hud-clock">{formatClock(s.time)}</div>
-      <button class="btn" onClick={() => runner.setPaused(!runner.paused)} title="Pause (Space)">
+      <button class="btn" disabled={ui.state.build.active} onClick={() => runner.setPaused(!runner.paused)} title="Pause (Space)">
         {runner.paused ? '▶ Play' : '⏸ Pause'}
       </button>
       {import.meta.env.DEV && (
@@ -44,6 +50,29 @@ export function Hud({ runner }: { runner: GameRunner }) {
         ))}
       </div>
       <div class="hud-spacer" />
+      <div class="hud-overlays">
+        {OVERLAYS.map((o) => (
+          <button
+            class={`btn small ${ui.state.overlay === o.id ? 'active' : ''}`}
+            title={o.title}
+            onClick={() => ui.set({ overlay: ui.state.overlay === o.id ? 'none' : o.id })}
+          >
+            {o.label}
+          </button>
+        ))}
+        {ui.state.overlay !== 'none' && (
+          <button class="btn small" title="Clear heatmap data" onClick={() => runner.send({ type: 'resetHeatmaps' })}>
+            ↺
+          </button>
+        )}
+      </div>
+      <button
+        class={`btn ${ui.state.build.active ? 'active' : ''}`}
+        onClick={() => (ui.state.build.active ? exitBuild(runner) : enterBuild(runner))}
+        title="Build mode (B)"
+      >
+        🔨 Build
+      </button>
       <button class="btn" onClick={() => ui.set({ modal: 'staff' })} title="Staff and work priorities">
         👥 Staff ({Object.keys(s.employees).length})
       </button>

@@ -1,6 +1,8 @@
+import { buyObject, moveObject, paintTiles, sellObject, type FloorTool } from './build/build';
+import type { Tile } from './grid/grid';
 import { cancelBatch, requestServe, startBatch } from './production/batches';
 import { fire, hire, paidRefresh, presetPriorities, setPriority } from './staff/hiring';
-import { WORK_TYPES, type GameState, type Id, type Priority, type WorkType } from './state';
+import { WORK_TYPES, type GameState, type Id, type Priority, type Rot, type WorkType } from './state';
 import { speedUp } from './stations/stations';
 import { values } from './util';
 
@@ -15,7 +17,12 @@ export type Command =
   | { type: 'refreshCandidates' }
   | { type: 'setPriority'; employeeId: Id; workType: WorkType; priority: Priority }
   | { type: 'setColumn'; workType: WorkType; priority: Priority }
-  | { type: 'applyPreset'; employeeId: Id; presetId: string };
+  | { type: 'applyPreset'; employeeId: Id; presetId: string }
+  | { type: 'buyObject'; objectType: string; x: number; y: number; rot: Rot }
+  | { type: 'moveObject'; id: Id; x: number; y: number; rot: Rot }
+  | { type: 'sellObject'; id: Id }
+  | { type: 'paintFloor'; tiles: Tile[]; tool: FloorTool }
+  | { type: 'resetHeatmaps' };
 
 export function applyCommand(state: GameState, cmd: Command): boolean {
   switch (cmd.type) {
@@ -37,6 +44,18 @@ export function applyCommand(state: GameState, cmd: Command): boolean {
       return setPriority(state, cmd.employeeId, cmd.workType, cmd.priority);
     case 'setColumn':
       for (const e of values(state.employees)) setPriority(state, e.id, cmd.workType, cmd.priority);
+      return true;
+    case 'buyObject':
+      return buyObject(state, cmd.objectType, cmd.x, cmd.y, cmd.rot);
+    case 'moveObject':
+      return moveObject(state, cmd.id, cmd.x, cmd.y, cmd.rot);
+    case 'sellObject':
+      return sellObject(state, cmd.id);
+    case 'paintFloor':
+      return paintTiles(state, cmd.tiles, cmd.tool);
+    case 'resetHeatmaps':
+      state.stats.blockedByTile = {};
+      state.stats.trafficByTile = {};
       return true;
     case 'applyPreset': {
       const e = state.employees[cmd.employeeId];

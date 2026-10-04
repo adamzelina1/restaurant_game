@@ -497,3 +497,74 @@ select.preset {
   background: #6fa8dc;
   margin-top: -3px;
 }
+
+/* Build mode */
+.build {
+  position: absolute;
+  top: 64px;
+  left: 8px;
+  width: 280px;
+  max-height: calc(100% - 80px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 10px 12px;
+}
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  vertical-align: -1px;
+}
+.palette {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.pal-item {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: #2c313a;
+  color: var(--text);
+  border: 1px solid #454b57;
+  border-radius: 6px;
+  padding: 4px 6px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+.pal-item:hover:not(:disabled) {
+  background: #363c47;
+}
+.pal-item:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.pal-item.active {
+  border-color: var(--good);
+  background: #2d3b2a;
+}
+.pal-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pal-cost {
+  color: #ffd966;
+  font-size: 11px;
+}
+.hud-overlays {
+  display: flex;
+  gap: 2px;
+}

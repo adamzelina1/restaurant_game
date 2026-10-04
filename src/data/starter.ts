@@ -24,8 +24,9 @@ export interface StarterStaff {
 }
 
 export const STARTER = {
-  width: 28,
-  height: 18,
+  // Room to expand: everything outside the starting rooms is void you can buy.
+  width: 40,
+  height: 28,
   money: 400,
   seed: 12345,
   /** Painted in order; later rects overwrite earlier ones. */

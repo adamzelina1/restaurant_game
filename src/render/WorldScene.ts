@@ -9,6 +9,7 @@ import { footprint, objectAtTile, rotatedSize, workTile } from '../sim/grid/grid
 import { batchProgress, batchTimeLeft } from '../sim/production/batches';
 import { Floor, type Employee, type GameState, type PlacedObject } from '../sim/state';
 import { clickObject } from '../ui/actions';
+import { BuildController } from './BuildMode';
 import { formatDuration } from '../ui/format';
 import { ui } from '../ui/store';
 
@@ -40,14 +41,20 @@ export class WorldScene extends Phaser.Scene {
   private fxG!: Phaser.GameObjects.Graphics;
   private agentG!: Phaser.GameObjects.Graphics;
   private topG!: Phaser.GameObjects.Graphics;
+  private heatG!: Phaser.GameObjects.Graphics;
   private drawnLayout = -1;
   private drawnGrid: object | null = null;
+  private drawnBuild = false;
+  private heatFrame = 0;
+  private build!: BuildController;
   private texts = new Map<string, Phaser.GameObjects.Text>();
   private usedTexts = new Set<string>();
   private floats: FloatText[] = [];
   private keys!: Record<'W' | 'A' | 'S' | 'D' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT', Phaser.Input.Keyboard.Key>;
   private drag: { x: number; y: number; sx: number; sy: number; moved: boolean } | null = null;
   private hoverTile: { x: number; y: number } | null = null;
+  /** The current press is with the left button. */
+  private leftDown = false;
 
   constructor(runner: GameRunner) {
     super('world');
@@ -60,6 +67,8 @@ export class WorldScene extends Phaser.Scene {
     this.fxG = this.add.graphics().setDepth(2);
     this.agentG = this.add.graphics().setDepth(3);
     this.topG = this.add.graphics().setDepth(5);
+    this.heatG = this.add.graphics().setDepth(0.5);
+    this.build = new BuildController(this.runner, this);
 
     const s = this.runner.state;
     const cam = this.cameras.main;
@@ -71,12 +80,21 @@ export class WorldScene extends Phaser.Scene {
     const kb = this.input.keyboard!;
     this.keys = kb.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT', false) as typeof this.keys;
 
+    const tileAt = (p: Phaser.Input.Pointer) => {
+      const wp = cam.getWorldPoint(p.x, p.y);
+      return { x: Math.floor(wp.x / TILE), y: Math.floor(wp.y / TILE) };
+    };
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      this.hoverTile = tileAt(p);
+      const left = !p.rightButtonDown() && !p.middleButtonDown();
+      this.leftDown = left;
+      // Build gestures (floor rectangles) take the left button; anything else pans.
+      if (this.build.active && left && this.build.pointerDown(this.hoverTile)) return;
       this.drag = { x: p.x, y: p.y, sx: cam.scrollX, sy: cam.scrollY, moved: false };
     });
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
-      const wp = cam.getWorldPoint(p.x, p.y);
-      this.hoverTile = { x: Math.floor(wp.x / TILE), y: Math.floor(wp.y / TILE) };
+      this.hoverTile = tileAt(p);
+      if (this.build.active) this.build.pointerMove(this.hoverTile);
       if (!this.drag || !p.isDown) return;
       const dx = p.x - this.drag.x;
       const dy = p.y - this.drag.y;
@@ -87,9 +105,12 @@ export class WorldScene extends Phaser.Scene {
       }
     });
     this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
+      if (this.build.active && this.build.pointerUp(tileAt(p))) return;
       const wasDrag = this.drag?.moved;
       this.drag = null;
-      if (!wasDrag) this.handleClick(p);
+      if (wasDrag || !this.leftDown) return;
+      if (this.build.active) this.build.click(tileAt(p));
+      else this.handleClick(p);
     });
     this.input.on('wheel', (p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
       const before = cam.getWorldPoint(p.x, p.y);
@@ -134,8 +155,9 @@ export class WorldScene extends Phaser.Scene {
     this.runner.frame(performance.now());
     const s = this.runner.state;
     this.panWithKeys(delta);
-    if (this.drawnLayout !== s.layoutVersion || this.drawnGrid !== s.grid) this.drawStatic(s);
+    if (this.drawnLayout !== s.layoutVersion || this.drawnGrid !== s.grid || this.drawnBuild !== this.build.active) this.drawStatic(s);
     this.usedTexts.clear();
+    if (this.heatFrame++ % 15 === 0) this.drawHeatmap(s);
     this.drawDynamic(s);
     this.drawAgents(s);
     for (const [k, t] of this.texts) if (!this.usedTexts.has(k)) t.setVisible(false);
@@ -166,12 +188,15 @@ export class WorldScene extends Phaser.Scene {
     });
   }
 
-  private text(key: string, x: number, y: number, str: string, style: Partial<Phaser.Types.GameObjects.Text.TextStyle> = {}): Phaser.GameObjects.Text {
+  /** A pooled text label, keyed so it persists across frames; hidden when not drawn. */
+  label(key: string, x: number, y: number, str: string, style: Partial<Phaser.Types.GameObjects.Text.TextStyle> = {}): Phaser.GameObjects.Text {
     let t = this.texts.get(key);
     if (!t) {
       t = this.add.text(0, 0, '', { ...TEXT_STYLE, ...style }).setOrigin(0.5).setDepth(6);
       this.texts.set(key, t);
     }
+    if (style.backgroundColor && t.style.backgroundColor !== style.backgroundColor) t.setBackgroundColor(style.backgroundColor);
+    if (style.color && t.style.color !== style.color) t.setColor(style.color as string);
     if (t.text !== str) t.setText(str);
     t.setPosition(x, y).setVisible(true);
     this.usedTexts.add(key);
@@ -183,6 +208,7 @@ export class WorldScene extends Phaser.Scene {
   private drawStatic(s: GameState): void {
     this.drawnLayout = s.layoutVersion;
     this.drawnGrid = s.grid;
+    this.drawnBuild = this.build.active;
     const g = this.floorG;
     g.clear();
     const { width, height, floor } = s.grid;
@@ -190,7 +216,14 @@ export class WorldScene extends Phaser.Scene {
       for (let x = 0; x < width; x++) {
         const f = floor[y * width + x];
         const c = FLOOR_COLORS[f];
-        if (!c) continue;
+        if (!c) {
+          // In build mode, show the empty lot you can buy.
+          if (this.build.active) {
+            g.lineStyle(1, 0x2c3038, 1);
+            g.strokeRect(x * TILE + 0.5, y * TILE + 0.5, TILE - 1, TILE - 1);
+          }
+          continue;
+        }
         g.fillStyle(c[(x + y) % 2], 1);
         g.fillRect(x * TILE, y * TILE, TILE, TILE);
       }
@@ -241,7 +274,7 @@ export class WorldScene extends Phaser.Scene {
       const cy = obj.y * TILE + (h * TILE) / 2;
 
       if (def.label && def.kind !== 'counter') {
-        this.text(`lbl:${obj.id}`, cx, cy, def.label, { fontSize: '9px', color: '#00000099', fontStyle: 'bold' });
+        this.label(`lbl:${obj.id}`, cx, cy, def.label, { fontSize: '9px', color: '#00000099', fontStyle: 'bold' });
       }
 
       if (obj.cook?.batchId) {
@@ -261,7 +294,7 @@ export class WorldScene extends Phaser.Scene {
           g.fillRect(cx - 14, cy + 9, 28, 4);
           g.fillStyle(0x6fa8dc, 1);
           g.fillRect(cx - 14, cy + 9, 28 * p, 4);
-          this.text(`st:${obj.id}`, cx, labelY, `${b.cratesLoaded}/${b.crates.length}`, { backgroundColor: '#000000aa', padding: { x: 2, y: 1 } });
+          this.label(`st:${obj.id}`, cx, labelY, `${b.cratesLoaded}/${b.crates.length}`, { backgroundColor: '#000000aa', padding: { x: 2, y: 1 } });
         } else if (b.phase === 'cooking') {
           g.lineStyle(3, 0x000000, 0.5);
           g.strokeCircle(cx, cy, 13);
@@ -269,14 +302,14 @@ export class WorldScene extends Phaser.Scene {
           g.beginPath();
           g.arc(cx, cy, 13, -Math.PI / 2, -Math.PI / 2 + p * Math.PI * 2, false);
           g.strokePath();
-          this.text(`st:${obj.id}`, cx, labelY, formatDuration(batchTimeLeft(b)), { backgroundColor: '#000000aa', padding: { x: 2, y: 1 } });
+          this.label(`st:${obj.id}`, cx, labelY, formatDuration(batchTimeLeft(b)), { backgroundColor: '#000000aa', padding: { x: 2, y: 1 } });
         } else if (b.phase === 'ready') {
           const bob = Math.sin(now * 5) * 2;
           const label = b.serveRequested ? 'Serving…' : 'Ready!';
           top.fillStyle(b.serveRequested ? 0x6aa84f : 0x38761d, 1);
           top.fillRoundedRect(cx - 22, cy - 32 + bob, 44, 16, 6);
           top.fillTriangle(cx - 4, cy - 16 + bob, cx + 4, cy - 16 + bob, cx, cy - 11 + bob);
-          this.text(`st:${obj.id}`, cx, cy - 24 + bob, label, { fontStyle: 'bold' }).setDepth(7);
+          this.label(`st:${obj.id}`, cx, cy - 24 + bob, label, { fontStyle: 'bold' }).setDepth(7);
           g.lineStyle(2, 0x93c47d, 0.6 + 0.4 * Math.sin(now * 5));
           g.strokeRoundedRect(obj.x * TILE + 1, obj.y * TILE + 1, w * TILE - 2, h * TILE - 2, 6);
         }
@@ -305,7 +338,7 @@ export class WorldScene extends Phaser.Scene {
           g.lineStyle(1, 0x000000, 0.6);
           g.strokeCircle(cx, cy, 9);
         }
-        this.text(`ctr:${obj.id}`, cx, cy, rid ? String(stock) : obj.counter.incoming.length ? '…' : '—', {
+        this.label(`ctr:${obj.id}`, cx, cy, rid ? String(stock) : obj.counter.incoming.length ? '…' : '—', {
           fontStyle: 'bold',
           color: rid ? '#000000' : '#666666',
         });
@@ -320,6 +353,12 @@ export class WorldScene extends Phaser.Scene {
       if (b.pot.kind === 'floor') this.drawPot(g, b.pot.x * TILE + TILE / 2, b.pot.y * TILE + TILE / 2, b.recipeId);
     }
 
+    if (this.build.active) {
+      this.build.draw(top, s, this.hoverTile);
+      this.input.setDefaultCursor('crosshair');
+      return;
+    }
+
     // Selection and hover.
     const sel = ui.state.selected;
     if (sel?.kind === 'object') {
@@ -332,6 +371,26 @@ export class WorldScene extends Phaser.Scene {
         this.highlight(top, o, 0xffffff, 0.35);
         this.input.setDefaultCursor('pointer');
       } else this.input.setDefaultCursor('default');
+    }
+  }
+
+  /** Walking / blocking heatmaps (PLAN §3.4). */
+  private drawHeatmap(s: GameState): void {
+    const g = this.heatG;
+    g.clear();
+    const mode = ui.state.overlay;
+    if (mode === 'none') return;
+    const data = mode === 'traffic' ? s.stats.trafficByTile : s.stats.blockedByTile;
+    let max = 0;
+    for (const v of Object.values(data)) max = Math.max(max, v);
+    if (max <= 0) return;
+    const color = mode === 'traffic' ? 0x6fa8dc : 0xe06666;
+    const w = s.grid.width;
+    for (const [k, v] of Object.entries(data)) {
+      const i = Number(k);
+      // Square root keeps light traffic visible next to the busiest tiles.
+      g.fillStyle(color, 0.12 + 0.68 * Math.sqrt(v / max));
+      g.fillRect((i % w) * TILE, Math.floor(i / w) * TILE, TILE, TILE);
     }
   }
 
@@ -411,9 +470,9 @@ export class WorldScene extends Phaser.Scene {
         g.fillRect(x - 9, y + 12, 18 * f, 3);
       }
       if (e.onBreak && e.activity === 'break' && !e.step && !e.goal) {
-        this.text(`zz:${e.id}`, x + 10, y - 10 - Math.sin(this.time.now / 300) * 2, 'z', { fontSize: '11px', color: '#b4a7d6', fontStyle: 'bold' });
+        this.label(`zz:${e.id}`, x + 10, y - 10 - Math.sin(this.time.now / 300) * 2, 'z', { fontSize: '11px', color: '#b4a7d6', fontStyle: 'bold' });
       }
-      this.text(`emp:${e.id}`, x, y - 18, e.name, { fontSize: '9px', backgroundColor: '#00000088', padding: { x: 2, y: 0 } }).setDepth(8);
+      this.label(`emp:${e.id}`, x, y - 18, e.name, { fontSize: '9px', backgroundColor: '#00000088', padding: { x: 2, y: 0 } }).setDepth(8);
     }
   }
 }
