@@ -44,6 +44,12 @@ export function Hud({ runner }: { runner: GameRunner }) {
         ))}
       </div>
       <div class="hud-spacer" />
+      <button class="btn" onClick={() => ui.set({ modal: 'staff' })} title="Staff and work priorities">
+        👥 Staff ({Object.keys(s.employees).length})
+      </button>
+      <button class="btn" onClick={() => ui.set({ modal: 'hiring' })}>
+        Hire
+      </button>
       <div class="hud-sold" title="Servings sold">
         🍽 {s.stats.servingsSold}
       </div>

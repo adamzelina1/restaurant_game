@@ -15,7 +15,7 @@ export function inBounds(state: GameState, x: number, y: number): boolean {
 }
 
 export function isFloor(f: Floor): boolean {
-  return f === Floor.Kitchen || f === Floor.Dining;
+  return f === Floor.Kitchen || f === Floor.Dining || f === Floor.Staff;
 }
 
 /** Footprint size after rotation. */

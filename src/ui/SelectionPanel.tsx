@@ -9,7 +9,10 @@ import { readyGrace } from '../sim/quality';
 import { SKILLS, WORK_TYPES, type Activity, type Employee, type GameState, type PlacedObject } from '../sim/state';
 import { speedUpTarget } from '../sim/stations/stations';
 import { describeCrate, describeEmployee } from './describe';
-import { formatDuration, hex, pct } from './format';
+import { formatDuration, formatMoney, hex, pct } from './format';
+import { TRAITS } from '../data/traits';
+import { BREAK_AT } from '../sim/constants';
+import { xpToNext } from '../sim/staff/xp';
 import { ui } from './store';
 
 export function SelectionPanel({ runner }: { runner: GameRunner }) {
@@ -216,6 +219,19 @@ function EmployeeView({ s, e, close }: { s: GameState; e: Employee; close: () =>
         </button>
       </div>
       <p>{describeEmployee(s, e)}</p>
+      <div class="row muted small">
+        {formatMoney(e.wage)}/h · walk {Math.round(e.walkSpeed * 100)}%
+      </div>
+      <div class="traits">
+        {e.traits.map((t) => (
+          <span class="trait" title={TRAITS[t]?.description}>
+            {TRAITS[t]?.name}: <span class="muted">{TRAITS[t]?.description}</span>
+          </span>
+        ))}
+      </div>
+      <h4>Stamina</h4>
+      <Bar value={e.stamina.current / e.stamina.max} color={e.stamina.current < BREAK_AT ? '#e06666' : '#93c47d'} />
+      {e.stamina.current < BREAK_AT && !e.onBreak && <p class="warn small">Exhausted, and no free couch in the staff room!</p>}
       <h4>Skills</h4>
       <table class="skills">
         {SKILLS.map((k) => (
@@ -223,8 +239,9 @@ function EmployeeView({ s, e, close }: { s: GameState; e: Employee; close: () =>
             <td>{k}</td>
             <td class="flames">{'🔥'.repeat(e.skills[k].passion)}</td>
             <td class="num">{e.skills[k].level}</td>
-            <td class="wide">
+            <td class="wide" title={`XP ${Math.floor(e.skills[k].xp)} / ${xpToNext(e.skills[k].level)}`}>
               <Bar value={e.skills[k].level / 20} color="#f6b26b" />
+              <div class="xp" style={{ width: `${Math.min(100, (100 * e.skills[k].xp) / xpToNext(e.skills[k].level))}%` }} />
             </td>
           </tr>
         ))}

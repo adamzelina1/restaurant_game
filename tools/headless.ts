@@ -30,15 +30,15 @@ function balance(hours: number, strategy: Strategy): void {
   const ms = performance.now() - t0;
   const income = s.stats.revenue + s.stats.tips;
   console.log(`\n=== Balance: ${hours} h, strategy "${strategy}" (${(ms / 1000).toFixed(1)} s real) ===`);
-  console.log(`Money: $${Math.round(s.money)}  income $${Math.round(income)}  spent $${Math.round(s.stats.spent)}`);
-  console.log(`Profit/hour: $${Math.round((income - s.stats.spent) / hours)}  servings sold: ${s.stats.servingsSold}  batches served: ${s.stats.batchesServed}`);
+  console.log(`Money: $${Math.round(s.money)}  income $${Math.round(income)}  spent $${Math.round(s.stats.spent)}  wages $${Math.round(s.stats.wagesPaid)}`);
+  console.log(`Profit/hour: $${Math.round((income - s.stats.spent - s.stats.wagesPaid) / hours)}  servings sold: ${s.stats.servingsSold}  batches served: ${s.stats.batchesServed}`);
   console.log('\nSold by recipe:');
   for (const [id, n] of Object.entries(s.stats.soldByRecipe)) console.log(`  ${pad(RECIPES[id].name, 16)} ${n}`);
   console.log('\nStaff time:');
   for (const e of Object.values(s.employees)) {
     const total = Object.values(e.time).reduce((a, b) => a + b, 0);
     const p = (k: keyof typeof e.time) => `${pad(k, 7)} ${pad(((100 * e.time[k]) / total).toFixed(1) + '%', 7)}`;
-    console.log(`  ${pad(e.name, 8)} ${p('working')} ${p('walking')} ${p('blocked')} ${p('idle')}`);
+    console.log(`  ${pad(e.name, 8)} ${p('working')} ${p('walking')} ${p('blocked')} ${p('idle')} ${p('break')}`);
   }
   const hot = Object.entries(s.stats.blockedByTile)
     .sort((a, b) => b[1] - a[1])

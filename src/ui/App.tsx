@@ -1,11 +1,13 @@
 import { useEffect } from 'preact/hooks';
 import type { GameRunner } from '../game/runner';
+import { HiringPanel } from './HiringPanel';
 import { Hud } from './Hud';
 import { useLive } from './hooks';
 import { Menu } from './Menu';
 import { Messages } from './Messages';
 import { RecipePicker } from './RecipePicker';
 import { SelectionPanel } from './SelectionPanel';
+import { StaffPanel } from './StaffPanel';
 import { ui } from './store';
 
 export function App({ runner }: { runner: GameRunner }) {
@@ -19,7 +21,7 @@ export function App({ runner }: { runner: GameRunner }) {
         e.preventDefault();
         runner.setPaused(!runner.paused);
       } else if (e.code === 'Escape') {
-        if (ui.state.picker || ui.state.menuOpen) ui.set({ picker: null, menuOpen: false });
+        if (ui.state.picker || ui.state.menuOpen || ui.state.modal) ui.set({ picker: null, menuOpen: false, modal: null });
         else ui.set({ selected: null });
       }
     };
@@ -33,6 +35,8 @@ export function App({ runner }: { runner: GameRunner }) {
       <SelectionPanel runner={runner} />
       <Messages runner={runner} />
       <RecipePicker runner={runner} />
+      <StaffPanel runner={runner} />
+      <HiringPanel runner={runner} />
       <Menu runner={runner} />
       {runner.paused && <div class="paused-banner">PAUSED</div>}
     </>

@@ -44,3 +44,35 @@ export const BUYER_INTERVAL = 15;
 export const BASE_TIP_FRACTION = 0.25;
 
 export const MAX_MESSAGES = 30;
+
+// Staff (PLAN §5)
+export const MAX_SKILL = 20;
+/** XP multiplier by passion: none, minor, major. */
+export const PASSION_XP = [0.35, 1.0, 1.5] as const;
+/** Stamina drain multiplier while doing work you're passionate about. */
+export const PASSION_DRAIN = [1, 0.85, 0.7] as const;
+/** XP for loading a crate into a station, in seconds-of-work equivalent. */
+export const LOAD_XP = 2;
+export const STAMINA_MAX = 100;
+/** Per second of active work at drainRate 1. */
+export const STAMINA_DRAIN_WORK = 0.01;
+/** Walking/carrying drains at this fraction of the work rate. */
+export const STAMINA_WALK_FACTOR = 0.4;
+/** Per second resting on a couch at recoverRate 1. */
+export const STAMINA_RECOVER = 0.15;
+/** Standing idle recovers at this fraction of the couch rate. */
+export const STAMINA_IDLE_FACTOR = 0.25;
+/** Coffee machines in the staff room add this much recovery each (max 2). */
+export const COFFEE_BOOST = 0.5;
+export const COFFEE_RANGE = 6;
+/** Below this, staff take a break after their current task. */
+export const BREAK_AT = 30;
+/** Below this, staff are slowed (avoids starvation when the staff room is full). */
+export const EXHAUSTED_AT = 15;
+export const EXHAUSTED_SPEED = 0.75;
+
+// Hiring (PLAN §5.4)
+export const HIRING_REFRESH = 6 * 3600;
+export const HIRING_REFRESH_COST = 50;
+/** Signing fee in hours of wage. */
+export const SIGNING_HOURS = 5;

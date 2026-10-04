@@ -6,7 +6,19 @@ import { STATE_VERSION } from '../sim/newGame';
  */
 type Migration = (state: any) => any;
 
-export const MIGRATIONS: Record<number, Migration> = {};
+export const MIGRATIONS: Record<number, Migration> = {
+  // v2: staff management (stamina breaks, hiring board, wages, reputation).
+  1: (s) => {
+    s.reputation ??= 1;
+    s.hiring ??= { candidates: [], refreshAt: 0 };
+    s.stats.wagesPaid ??= 0;
+    for (const e of Object.values<any>(s.employees)) {
+      e.workingSkill ??= null;
+      e.onBreak ??= null;
+    }
+    return s;
+  },
+};
 
 export function migrate(state: any): any {
   let s = state;

@@ -2,16 +2,19 @@ import type { Id } from '../sim/state';
 
 export type Selection = { kind: 'object'; id: Id } | { kind: 'employee'; id: Id } | null;
 
+export type Modal = 'staff' | 'hiring' | null;
+
 export interface UiState {
   selected: Selection;
   /** Station whose recipe picker is open. */
   picker: Id | null;
   menuOpen: boolean;
+  modal: Modal;
 }
 
 /** Tiny observable store for view-only UI state (never game state). */
 class UiStore {
-  state: UiState = { selected: null, picker: null, menuOpen: false };
+  state: UiState = { selected: null, picker: null, menuOpen: false, modal: null };
   private listeners = new Set<() => void>();
 
   set(patch: Partial<UiState>): void {

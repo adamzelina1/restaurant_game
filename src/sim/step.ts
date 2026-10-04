@@ -1,8 +1,10 @@
-import { employeesAccount, employeesDecide, moveEmployees } from './agents/employees';
+import { employeesAfterMove, employeesDecide, moveEmployees } from './agents/employees';
 import { applyCommand, type Command } from './commands';
 import { TICK_DT, TICK_RATE } from './constants';
 import { tickBuyers } from './economy/buyers';
+import { tickWages } from './economy/wages';
 import { tickCooking } from './production/batches';
+import { tickHiring } from './staff/hiring';
 import type { GameState } from './state';
 import { coolHeat } from './stations/stations';
 import { refreshTasks } from './tasks/tasks';
@@ -18,10 +20,12 @@ export function step(state: GameState, commands: readonly Command[] = []): void 
   refreshTasks(state);
   employeesDecide(state, dt);
   moveEmployees(state, dt);
-  employeesAccount(state, dt);
+  employeesAfterMove(state, dt);
   tickCooking(state, dt);
   coolHeat(state, dt);
   tickBuyers(state, dt);
+  tickWages(state, dt);
+  tickHiring(state);
 
   state.tick++;
   state.time = state.tick / TICK_RATE;

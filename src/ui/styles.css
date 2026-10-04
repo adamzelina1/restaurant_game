@@ -390,3 +390,110 @@ table.recipes tr.disabled td {
   font-weight: 700;
   pointer-events: none !important;
 }
+
+/* Staff grid */
+.small {
+  font-size: 11px;
+}
+table.grid {
+  border-collapse: collapse;
+  margin: 6px 0;
+}
+table.grid th {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 4px 6px;
+  font-weight: 600;
+}
+table.grid th.clickable {
+  cursor: pointer;
+}
+table.grid th.clickable:hover {
+  color: var(--text);
+}
+table.grid td {
+  padding: 3px 6px;
+  border-top: 1px solid #2a2e36;
+}
+table.grid td.who a {
+  cursor: pointer;
+  font-weight: 600;
+}
+table.grid td.cell {
+  text-align: center;
+  cursor: pointer;
+  min-width: 46px;
+  user-select: none;
+}
+td.cell .prio-val {
+  font-weight: 700;
+  font-size: 14px;
+}
+td.cell .cell-skill {
+  font-size: 10px;
+  color: var(--muted);
+}
+td.cell.p1 {
+  background: rgba(147, 196, 125, 0.28);
+}
+td.cell.p2 {
+  background: rgba(147, 196, 125, 0.16);
+}
+td.cell.p3 {
+  background: rgba(246, 178, 107, 0.12);
+}
+td.cell.p4 {
+  background: rgba(246, 178, 107, 0.06);
+}
+td.cell.p0 {
+  color: #555;
+}
+td.cell.locked {
+  cursor: not-allowed;
+  color: var(--warn);
+}
+td.cell:hover:not(.locked) {
+  outline: 1px solid var(--accent);
+}
+select.preset {
+  background: #2c313a;
+  color: var(--text);
+  border: 1px solid #454b57;
+  border-radius: 6px;
+  padding: 2px 4px;
+  font: inherit;
+  font-size: 12px;
+}
+.trait {
+  display: inline-block;
+  background: #3a3150;
+  color: #d9d2e9;
+  border-radius: 4px;
+  padding: 0 5px;
+  margin: 2px 4px 2px 0;
+  font-size: 11px;
+}
+.traits {
+  margin: 4px 0;
+}
+.cards {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.card {
+  background: #23272e;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.xp {
+  height: 2px;
+  background: #6fa8dc;
+  margin-top: -3px;
+}

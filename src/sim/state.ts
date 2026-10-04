@@ -25,6 +25,7 @@ export const Floor = {
   Kitchen: 1,
   Dining: 2,
   Wall: 3,
+  Staff: 4,
 } as const;
 export type Floor = (typeof Floor)[keyof typeof Floor];
 
@@ -212,8 +213,23 @@ export interface Employee extends Mover {
   toilTime: number;
   carrying: Carry | null;
   activity: Activity;
+  /** Skill used by the work done this tick (for XP and passion stamina relief). */
+  workingSkill: Skill | null;
+  /** Rest seat claimed while on break. */
+  onBreak: { objectId: Id; seat: number } | null;
   /** Lifetime seconds per activity, for the time breakdown. */
   time: Record<Activity, number>;
+}
+
+/** A hiring-board applicant: an employee who hasn't been placed in the world yet. */
+export interface Candidate {
+  name: string;
+  color: number;
+  skills: Record<Skill, SkillState>;
+  traits: string[];
+  walkSpeed: number;
+  wage: number;
+  presetId: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -232,6 +248,7 @@ export interface Stats {
   spent: number;
   soldByRecipe: Record<string, number>;
   batchesServed: number;
+  wagesPaid: number;
   /** Seconds agents spent blocked, per tile index (blocking heatmap). */
   blockedByTile: Record<number, number>;
   /** Steps taken onto each tile (walking heatmap). */
@@ -260,6 +277,9 @@ export interface GameState {
   /** Abstract buyers (until real customers arrive): seconds to next buyer. */
   nextBuyerIn: number;
   unlockedRecipes: string[];
+  /** Reputation in stars, 1–5 (continuous). */
+  reputation: number;
+  hiring: { candidates: Candidate[]; refreshAt: number };
   messages: Message[];
   nextMessageId: number;
   stats: Stats;

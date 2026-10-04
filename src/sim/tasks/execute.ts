@@ -4,11 +4,12 @@
 import { recipe } from '../../data/recipes';
 import { stationDef } from '../../data/stations';
 import { clearGoal, isAt, setGoal } from '../agents/movement';
-import { DROP_TIME, LOAD_TIME, PICKUP_TIME } from '../constants';
+import { DROP_TIME, LOAD_TIME, LOAD_XP, PICKUP_TIME } from '../constants';
 import { tidyCounter } from '../counters/counters';
 import { workTile, type Tile } from '../grid/grid';
 import { onCrateLoaded, readyBatchQuality } from '../production/batches';
-import { empWorkSpeed, skillLevel } from '../skills';
+import { empWorkSpeed, qualityLevel } from '../skills';
+import { gainXp } from '../staff/xp';
 import type { Employee, GameState, Task } from '../state';
 import { message } from '../util';
 import { abandonTask, claimTask, createTask, crateTile, deleteTask, potTile } from './tasks';
@@ -79,8 +80,9 @@ function runDeliver(state: GameState, emp: Employee, t: Task, dt: number): Outco
       c.loc = { kind: 'loaded' };
       const skill = stationDef(target.type).skill;
       if (skill) {
-        b.cookSkillSum += skillLevel(emp, skill);
+        b.cookSkillSum += qualityLevel(emp, skill);
         b.cookSkillCount++;
+        gainXp(state, emp, skill, LOAD_XP);
       }
       onCrateLoaded(state, b);
       return { r: 'done' };
@@ -99,10 +101,12 @@ function runPrep(state: GameState, emp: Employee, t: Task, dt: number): Outcome 
       return { r: goTo(emp, workTile(st)) };
     case 1: {
       emp.activity = 'working';
+      emp.workingSkill = c.prepSkill;
       c.prepDone += dt * empWorkSpeed(emp, c.prepSkill!);
+      gainXp(state, emp, c.prepSkill!, dt);
       if (c.prepDone + c.clickRemoved < c.prepTime) return { r: 'wait' };
       c.prepped = true;
-      b.prepSkillSum += skillLevel(emp, c.prepSkill!);
+      b.prepSkillSum += qualityLevel(emp, c.prepSkill!);
       b.prepSkillCount++;
       return { r: 'done', follow: createTask(state, 'deliver', 'Cook', b.id, c.id) };
     }
@@ -121,12 +125,14 @@ function runTend(state: GameState, emp: Employee, t: Task, dt: number): Outcome 
     case 1: {
       const skill = stationDef(st.type).skill ?? 'Saute';
       if (emp.toilTime === 0) {
-        b.cookSkillSum += skillLevel(emp, skill);
+        b.cookSkillSum += qualityLevel(emp, skill);
         b.cookSkillCount++;
       }
       emp.activity = 'working';
+      emp.workingSkill = skill;
       emp.toilTime += dt;
       b.cookDone += dt * empWorkSpeed(emp, skill);
+      gainXp(state, emp, skill, dt);
       return { r: 'wait' };
     }
   }

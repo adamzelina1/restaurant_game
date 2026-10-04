@@ -1,6 +1,6 @@
 import type { Skill } from '../sim/state';
 
-export type StationKind = 'source' | 'prep' | 'cook' | 'counter' | 'idle';
+export type StationKind = 'source' | 'prep' | 'cook' | 'counter' | 'idle' | 'rest' | 'boost';
 
 export interface StationDef {
   id: string;
@@ -34,6 +34,9 @@ export const STATIONS: Record<string, StationDef> = {
   stockPot: { id: 'stockPot', name: 'Stock pot', kind: 'cook', skill: 'Saute', w: 1, h: 1, work: [S], cost: 900, color: 0x556b2f, label: 'POT' },
   counter: { id: 'counter', name: 'Serving counter', kind: 'counter', w: 1, h: 1, work: [S], cost: 300, color: 0xd9d9d9, label: 'CTR' },
   idleSpot: { id: 'idleSpot', name: 'Idle spot', kind: 'idle', w: 1, h: 1, work: [{ dx: 0, dy: 0 }], walkable: true, cost: 0, color: 0x6aa84f, label: '' },
+  // Staff room: each couch seat (work tile) is a rest spot; coffee machines boost recovery.
+  couch: { id: 'couch', name: 'Couch', kind: 'rest', w: 2, h: 1, work: [S, { dx: 1, dy: 1 }], cost: 250, color: 0x8e7cc3, label: 'SOFA' },
+  coffeeMachine: { id: 'coffeeMachine', name: 'Coffee machine', kind: 'boost', w: 1, h: 1, work: [S], cost: 350, color: 0x4e342e, label: 'CAF' },
 };
 
 export function stationDef(type: string): StationDef {
