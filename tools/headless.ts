@@ -72,7 +72,7 @@ function stress(trials: number): void {
     const starts = shuffled().slice(0, n);
     const agents: AgentRef[] = starts.map(([x, y], i) => {
       const m: Mover = { x, y, step: null, goal: null, blocked: 0, detour: [] };
-      return { id: `a${i}`, m, speed: 2.5, order: i, canYield: false, canSwap: true };
+      return { id: `a${i}`, m, speed: 2.5, order: i, canYield: false, canSwap: true, mask: 'staff' as const };
     });
     let maxBlocked = 0;
     // Keep handing out new random goals for two simulated minutes.

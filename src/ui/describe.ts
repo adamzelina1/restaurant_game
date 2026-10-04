@@ -1,7 +1,7 @@
 import { INGREDIENTS } from '../data/ingredients';
 import { recipe } from '../data/recipes';
 import { stationDef } from '../data/stations';
-import type { Crate, Employee, GameState, Task } from '../sim/state';
+import type { Crate, Customer, Employee, GameState, Task } from '../sim/state';
 
 function objName(s: GameState, id: string | null): string {
   const o = id ? s.objects[id] : null;
@@ -9,8 +9,10 @@ function objName(s: GameState, id: string | null): string {
 }
 
 export function describeTask(s: GameState, t: Task): string {
-  const b = s.batches[t.batchId];
+  const b = t.batchId ? s.batches[t.batchId] : null;
   const c = t.crateId ? s.crates[t.crateId] : null;
+  const guest = t.customerId ? s.customers[t.customerId] : null;
+  const dish = guest?.dish ? recipe(guest.dish).name.toLowerCase() : 'food';
   const ing = c ? INGREDIENTS[c.ingredient]?.name ?? c.ingredient : '';
   switch (t.kind) {
     case 'deliver':
@@ -24,7 +26,32 @@ export function describeTask(s: GameState, t: Task): string {
       return `Cooking ${b ? recipe(b.recipeId).name : ''}`;
     case 'carryBatch':
       return `Carrying ${b ? recipe(b.recipeId).name : 'batch'} to the counter`;
+    case 'takeOrder':
+      return `Taking an order (party of ${t.partyId ? s.parties[t.partyId]?.size ?? '?' : '?'})`;
+    case 'plate':
+      return `Plating ${dish}`;
+    case 'serve':
+      return `Serving ${dish}`;
   }
+}
+
+const PHASE_TEXT: Record<string, string> = {
+  queue: 'Waiting for a table',
+  seating: 'Heading to their table',
+  browsing: 'Reading the menu',
+  waitOrder: 'Waiting to order',
+  waitFood: 'Waiting for food',
+  eating: 'Eating',
+  leaving: 'Leaving',
+};
+
+export function describeCustomer(s: GameState, c: Customer): string {
+  const p = s.parties[c.partyId];
+  if (!p) return '';
+  if (p.phase === 'leaving') return p.angry ? 'Leaving angry!' : 'Leaving happy';
+  if (c.plate?.at === 'table' && c.eatLeft > 0) return `Eating ${recipe(c.dish!).name.toLowerCase()}`;
+  if (p.phase === 'waitFood' && c.dish) return `Waiting for ${recipe(c.dish).name.toLowerCase()}`;
+  return PHASE_TEXT[p.phase] ?? p.phase;
 }
 
 export function describeEmployee(s: GameState, e: Employee): string {

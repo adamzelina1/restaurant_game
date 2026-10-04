@@ -10,7 +10,7 @@ function mover(x: number, y: number): Mover {
 }
 
 function agent(id: string, m: Mover, order: number, opts: Partial<AgentRef> = {}): AgentRef {
-  return { id, m, speed: 2.5, order, canYield: false, canSwap: true, ...opts };
+  return { id, m, speed: 2.5, order, canYield: false, canSwap: true, mask: 'staff', ...opts };
 }
 
 function run(s: GameState, agents: AgentRef[], seconds: number, onTick?: () => void): void {

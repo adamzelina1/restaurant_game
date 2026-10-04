@@ -3,45 +3,21 @@
 
 import { recipe } from '../../data/recipes';
 import { stationDef } from '../../data/stations';
-import { clearGoal, isAt, setGoal } from '../agents/movement';
 import { DROP_TIME, LOAD_TIME, LOAD_XP, PICKUP_TIME } from '../constants';
 import { tidyCounter } from '../counters/counters';
-import { workTile, type Tile } from '../grid/grid';
+import { runPlate, runServe, runTakeOrder } from '../foh/service';
+import { workTile } from '../grid/grid';
 import { onCrateLoaded, readyBatchQuality } from '../production/batches';
 import { empWorkSpeed, qualityLevel } from '../skills';
 import { gainXp } from '../staff/xp';
 import type { Employee, GameState, Task } from '../state';
 import { message } from '../util';
 import { abandonTask, claimTask, createTask, crateTile, deleteTask, potTile } from './tasks';
-
-type R = 'wait' | 'next' | 'done' | 'fail';
-
-interface Outcome {
-  r: R;
-  /** Task created by finishing this one, offered to the same employee first. */
-  follow?: Task;
-}
-
-function goTo(emp: Employee, tile: Tile | null): R {
-  if (!tile) return 'fail';
-  if (isAt(emp, tile.x, tile.y)) {
-    clearGoal(emp);
-    return 'next';
-  }
-  setGoal(emp, tile.x, tile.y);
-  emp.activity = 'walking';
-  return 'wait';
-}
-
-function timed(emp: Employee, dur: number, dt: number): R {
-  emp.activity = 'working';
-  emp.toilTime += dt;
-  return emp.toilTime >= dur - 1e-9 ? 'next' : 'wait';
-}
+import { goTo, timed, type Outcome } from './toils';
 
 function runDeliver(state: GameState, emp: Employee, t: Task, dt: number): Outcome {
   const c = state.crates[t.crateId!];
-  const b = state.batches[t.batchId];
+  const b = state.batches[t.batchId!];
   const target = t.targetId ? state.objects[t.targetId] : null;
   if (!c || !b || !target) return { r: 'fail' };
   switch (emp.toil) {
@@ -75,7 +51,7 @@ function runDeliver(state: GameState, emp: Employee, t: Task, dt: number): Outco
         c.loc = { kind: 'station', id: target.id };
         target.prep.crateId = c.id;
         target.prep.reservedBy = null;
-        return { r: 'done', follow: createTask(state, 'prep', 'Prep', b.id, c.id) };
+        return { r: 'done', follow: createTask(state, 'prep', 'Prep', { batchId: b.id, crateId: c.id }) };
       }
       c.loc = { kind: 'loaded' };
       const skill = stationDef(target.type).skill;
@@ -93,7 +69,7 @@ function runDeliver(state: GameState, emp: Employee, t: Task, dt: number): Outco
 
 function runPrep(state: GameState, emp: Employee, t: Task, dt: number): Outcome {
   const c = state.crates[t.crateId!];
-  const b = state.batches[t.batchId];
+  const b = state.batches[t.batchId!];
   const st = t.targetId ? state.objects[t.targetId] : null;
   if (!c || !b || !st || c.loc.kind !== 'station' || c.loc.id !== st.id) return { r: 'fail' };
   switch (emp.toil) {
@@ -108,14 +84,14 @@ function runPrep(state: GameState, emp: Employee, t: Task, dt: number): Outcome 
       c.prepped = true;
       b.prepSkillSum += qualityLevel(emp, c.prepSkill!);
       b.prepSkillCount++;
-      return { r: 'done', follow: createTask(state, 'deliver', 'Cook', b.id, c.id) };
+      return { r: 'done', follow: createTask(state, 'deliver', 'Cook', { batchId: b.id, crateId: c.id }) };
     }
   }
   return { r: 'fail' };
 }
 
 function runTend(state: GameState, emp: Employee, t: Task, dt: number): Outcome {
-  const b = state.batches[t.batchId];
+  const b = state.batches[t.batchId!];
   const st = b ? state.objects[b.stationId] : null;
   if (!b || !st) return { r: 'fail' };
   if (b.phase !== 'cooking') return { r: 'done' };
@@ -140,7 +116,7 @@ function runTend(state: GameState, emp: Employee, t: Task, dt: number): Outcome 
 }
 
 function runCarryBatch(state: GameState, emp: Employee, t: Task, dt: number): Outcome {
-  const b = state.batches[t.batchId];
+  const b = state.batches[t.batchId!];
   const counter = t.targetId ? state.objects[t.targetId] : null;
   if (!b || !counter?.counter) return { r: 'fail' };
   switch (emp.toil) {
@@ -196,7 +172,23 @@ function runOnce(state: GameState, emp: Employee, t: Task, dt: number): Outcome 
       return runTend(state, emp, t, dt);
     case 'carryBatch':
       return runCarryBatch(state, emp, t, dt);
+    case 'takeOrder':
+      return runTakeOrder(state, emp, t, dt);
+    case 'plate':
+      return runPlate(state, emp, t, dt);
+    case 'serve':
+      return runServe(state, emp, t, dt);
   }
+}
+
+/** Is the thing this task is about still around? */
+function taskStillValid(state: GameState, t: Task): boolean {
+  if (t.batchId && !state.batches[t.batchId]) return false;
+  if (t.crateId && !state.crates[t.crateId]) return false;
+  const party = t.partyId ? state.parties[t.partyId] : null;
+  if (t.partyId && (!party || party.phase === 'leaving')) return false;
+  if (t.customerId && !state.customers[t.customerId]) return false;
+  return true;
 }
 
 /** Run the employee's current task for one tick. */
@@ -215,7 +207,7 @@ export function runTask(state: GameState, emp: Employee, dt: number): void {
       continue;
     }
     if (out.r === 'fail') {
-      const valid = !!state.batches[t.batchId] && (!t.crateId || !!state.crates[t.crateId]);
+      const valid = taskStillValid(state, t);
       abandonTask(state, emp);
       if (!valid) deleteTask(state, t.id);
       return;

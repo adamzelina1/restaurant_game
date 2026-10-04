@@ -1,20 +1,23 @@
 import { recipe } from '../../data/recipes';
 import { stationDef } from '../../data/stations';
 import { clearGoal } from '../agents/movement';
+import { PASS_CAPACITY } from '../constants';
+import { replate } from '../foh/service';
 import { distance } from '../grid/distance';
-import { workTile, type Tile } from '../grid/grid';
+import { objectsOfKind, objectsOfType, workTile, workTiles, type Tile } from '../grid/grid';
 import { skillLevel } from '../skills';
 import type { Employee, GameState, Id, PlacedObject, Skill, Task, TaskKind, WorkType } from '../state';
 import { newId, values } from '../util';
 
-export function createTask(
-  state: GameState,
-  kind: TaskKind,
-  workType: WorkType,
-  batchId: Id,
-  crateId: Id | null,
-  urgent = false,
-): Task {
+export interface TaskRefs {
+  batchId?: Id | null;
+  crateId?: Id | null;
+  partyId?: Id | null;
+  customerId?: Id | null;
+  urgent?: boolean;
+}
+
+export function createTask(state: GameState, kind: TaskKind, workType: WorkType, refs: TaskRefs): Task {
   const t: Task = {
     id: newId(state, 't'),
     kind,
@@ -22,9 +25,11 @@ export function createTask(
     status: 'blocked',
     claimedBy: null,
     createdAt: state.time,
-    urgent,
-    batchId,
-    crateId,
+    urgent: refs.urgent ?? false,
+    batchId: refs.batchId ?? null,
+    crateId: refs.crateId ?? null,
+    partyId: refs.partyId ?? null,
+    customerId: refs.customerId ?? null,
     sourceId: null,
     targetId: null,
   };
@@ -43,10 +48,6 @@ export function deleteTask(state: GameState, id: Id): void {
 // ---------------------------------------------------------------------------
 // Queries
 
-export function objectsOfKind(state: GameState, kind: string): PlacedObject[] {
-  return values(state.objects).filter((o) => stationDef(o.type).kind === kind);
-}
-
 function reachable(state: GameState, from: Tile, to: Tile): boolean {
   return Number.isFinite(distance(state, from.x, from.y, to.x, to.y));
 }
@@ -59,8 +60,8 @@ function isFreePrepStation(o: PlacedObject): boolean {
 export function findFreePrepStation(state: GameState, type: string, from: Tile): PlacedObject | null {
   let best: PlacedObject | null = null;
   let bestD = Infinity;
-  for (const o of values(state.objects)) {
-    if (o.type !== type || !isFreePrepStation(o)) continue;
+  for (const o of objectsOfType(state, type)) {
+    if (!isFreePrepStation(o)) continue;
     const wt = workTile(o);
     const d = distance(state, from.x, from.y, wt.x, wt.y);
     if (d < bestD) {
@@ -72,7 +73,7 @@ export function findFreePrepStation(state: GameState, type: string, from: Tile):
 }
 
 function anyFreePrepStation(state: GameState, type: string): boolean {
-  return values(state.objects).some((o) => o.type === type && isFreePrepStation(o));
+  return objectsOfType(state, type).some(isFreePrepStation);
 }
 
 /** Can this counter take servings of `recipeId` (now or once in-flight carries land)? */
@@ -81,7 +82,7 @@ export function counterAccepts(state: GameState, c: PlacedObject, recipeId: stri
   if (c.counter.recipeId !== null) return c.counter.recipeId === recipeId;
   for (const tid of c.counter.incoming) {
     const t = state.tasks[tid];
-    const b = t && state.batches[t.batchId];
+    const b = t?.batchId ? state.batches[t.batchId] : null;
     if (b && b.recipeId !== recipeId) return false;
   }
   return true;
@@ -118,6 +119,21 @@ function bestSource(state: GameState, from: Tile, dest: Tile): PlacedObject | nu
   return best;
 }
 
+function passHasRoom(o: PlacedObject): boolean {
+  return !!o.pass && o.pass.plates.length + o.pass.incoming.length < PASS_CAPACITY;
+}
+
+/** Kitchen side of the pass (where plates are put down). */
+export function passKitchenTile(o: PlacedObject): Tile {
+  return workTiles(o)[0];
+}
+
+/** Dining side of the pass (where servers pick plates up). */
+export function passDiningTile(o: PlacedObject): Tile {
+  const w = workTiles(o);
+  return w[1] ?? w[0];
+}
+
 /** Where a deliver task's crate currently is, as a tile. */
 export function crateTile(state: GameState, crateId: Id): Tile | null {
   const c = state.crates[crateId];
@@ -150,40 +166,51 @@ export function potTile(state: GameState, batchId: Id): Tile | null {
   return st ? workTile(st) : null;
 }
 
+/** The service tile of a party's table, where waiters stand. */
+export function tableTile(state: GameState, partyId: Id | null): Tile | null {
+  const p = partyId ? state.parties[partyId] : null;
+  const t = p?.tableId ? state.objects[p.tableId] : null;
+  return t ? workTile(t) : null;
+}
+
 // ---------------------------------------------------------------------------
 // Task generation: refresh statuses from world state each tick.
 
-function deliverDestinationIsCook(state: GameState, t: Task): boolean {
-  const c = state.crates[t.crateId!];
-  return !c.needsPrep || c.prepped;
-}
-
 export function refreshTask(state: GameState, t: Task): void {
   if (t.status === 'claimed') return;
-  const batch = state.batches[t.batchId];
-  if (!batch) {
-    t.status = 'blocked';
-    return;
-  }
+  t.status = isReady(state, t) ? 'ready' : 'blocked';
+}
+
+function isReady(state: GameState, t: Task): boolean {
   switch (t.kind) {
     case 'deliver': {
-      const c = state.crates[t.crateId!];
+      const c = t.crateId ? state.crates[t.crateId] : null;
+      if (!c || !t.batchId || !state.batches[t.batchId]) return false;
       // Prepped crates waiting on a prep station are loaded by cooks; raw
       // ingredients are fetched by haulers.
       t.workType = c.prepped && c.loc.kind === 'station' ? 'Cook' : 'Haul';
-      if (deliverDestinationIsCook(state, t)) t.status = 'ready';
-      else t.status = anyFreePrepStation(state, c.prepStation!) ? 'ready' : 'blocked';
-      if (c.loc.kind === 'source' && objectsOfKind(state, 'source').length === 0) t.status = 'blocked';
-      break;
+      if (c.loc.kind === 'source' && objectsOfKind(state, 'source').length === 0) return false;
+      if (!c.needsPrep || c.prepped) return true;
+      return anyFreePrepStation(state, c.prepStation!);
     }
     case 'prep':
     case 'tend':
-      t.status = 'ready';
-      break;
+      return !!t.batchId && !!state.batches[t.batchId];
     case 'carryBatch': {
-      const ok = objectsOfKind(state, 'counter').some((c) => counterAccepts(state, c, batch.recipeId));
-      t.status = ok ? 'ready' : 'blocked';
-      break;
+      const b = t.batchId ? state.batches[t.batchId] : null;
+      return !!b && objectsOfKind(state, 'counter').some((c) => counterAccepts(state, c, b.recipeId));
+    }
+    case 'takeOrder': {
+      const p = t.partyId ? state.parties[t.partyId] : null;
+      return !!p && p.phase === 'waitOrder' && !!tableTile(state, p.id);
+    }
+    case 'plate': {
+      const c = t.customerId ? state.customers[t.customerId] : null;
+      return !!c && !!c.dish && !!c.counterId && !c.plate && objectsOfKind(state, 'pass').some(passHasRoom);
+    }
+    case 'serve': {
+      const c = t.customerId ? state.customers[t.customerId] : null;
+      return c?.plate?.at === 'pass';
     }
   }
 }
@@ -215,16 +242,26 @@ function taskAnchor(state: GameState, t: Task, emp: Employee): Tile | null {
       }
       return crateTile(state, c.id);
     }
-    case 'prep': {
-      const c = state.crates[t.crateId!];
-      return crateTile(state, c.id);
-    }
+    case 'prep':
+      return crateTile(state, t.crateId!);
     case 'tend': {
-      const st = state.objects[state.batches[t.batchId].stationId];
+      const st = state.objects[state.batches[t.batchId!].stationId];
       return st ? workTile(st) : null;
     }
     case 'carryBatch':
-      return potTile(state, t.batchId);
+      return potTile(state, t.batchId!);
+    case 'takeOrder':
+      return tableTile(state, t.partyId);
+    case 'plate': {
+      const c = state.customers[t.customerId!];
+      const counter = c?.counterId ? state.objects[c.counterId] : null;
+      return counter ? workTile(counter) : null;
+    }
+    case 'serve': {
+      const c = state.customers[t.customerId!];
+      const pass = c?.plate?.passId ? state.objects[c.plate.passId] : null;
+      return pass ? passDiningTile(pass) : null;
+    }
   }
 }
 
@@ -234,8 +271,9 @@ export function scoreTask(state: GameState, t: Task, emp: Employee): number {
   const d = distance(state, emp.x, emp.y, anchor.x, anchor.y);
   if (!Number.isFinite(d)) return -Infinity;
   let score = t.urgent ? 1000 : 0;
-  // Older tasks gain a little urgency so nothing starves.
-  score += Math.min(20, (state.time - t.createdAt) / 30);
+  // Older tasks gain a little urgency so nothing starves; hungry guests more so.
+  const age = state.time - t.createdAt;
+  score += t.partyId || t.customerId ? Math.min(40, age / 8) : Math.min(20, age / 30);
   const sk = relevantSkill(state, t);
   if (sk) score += 0.5 * skillLevel(emp, sk);
   score -= d;
@@ -243,13 +281,23 @@ export function scoreTask(state: GameState, t: Task, emp: Employee): number {
 }
 
 function relevantSkill(state: GameState, t: Task): Skill | null {
-  const b = state.batches[t.batchId];
-  if (!b) return null;
-  if (t.kind === 'prep') return state.crates[t.crateId!].prepSkill;
-  if (t.kind === 'tend' || (t.kind === 'deliver' && t.workType === 'Cook')) {
-    return stationDef(recipe(b.recipeId).station).skill ?? null;
+  switch (t.kind) {
+    case 'takeOrder':
+    case 'serve':
+      return 'Service';
+    case 'plate':
+      return 'Plating';
+    case 'prep':
+      return state.crates[t.crateId!]?.prepSkill ?? null;
+    case 'tend':
+    case 'deliver': {
+      if (t.kind === 'deliver' && t.workType !== 'Cook') return null;
+      const b = t.batchId ? state.batches[t.batchId] : null;
+      return b ? stationDef(recipe(b.recipeId).station).skill ?? null : null;
+    }
+    default:
+      return null;
   }
-  return null;
 }
 
 /** Pick the best ready task for an idle employee, honouring priority tiers. */
@@ -276,21 +324,15 @@ export function pickTask(state: GameState, emp: Employee): Task | null {
 /** Resolve source/target and take reservations. Returns false if impossible now. */
 export function claimTask(state: GameState, emp: Employee, t: Task): boolean {
   if (t.status !== 'ready' || t.claimedBy) return false;
-  const batch = state.batches[t.batchId];
-  if (!batch) return false;
   const here = { x: emp.x, y: emp.y };
 
   switch (t.kind) {
     case 'deliver': {
+      const batch = state.batches[t.batchId!];
       const c = state.crates[t.crateId!];
-      const cookStation = state.objects[batch.stationId];
-      let dest: PlacedObject | null;
+      if (!batch || !c) return false;
       const from = crateTile(state, c.id) ?? here;
-      if (c.needsPrep && !c.prepped) {
-        dest = findFreePrepStation(state, c.prepStation!, from);
-      } else {
-        dest = cookStation;
-      }
+      const dest = c.needsPrep && !c.prepped ? findFreePrepStation(state, c.prepStation!, from) : state.objects[batch.stationId];
       if (!dest) return false;
       const destTile = workTile(dest);
       let source: PlacedObject | null = null;
@@ -309,19 +351,63 @@ export function claimTask(state: GameState, emp: Employee, t: Task): boolean {
     }
     case 'prep': {
       const c = state.crates[t.crateId!];
-      if (c.loc.kind !== 'station') return false;
+      if (!c || c.loc.kind !== 'station') return false;
       t.targetId = c.loc.id;
       break;
     }
-    case 'tend':
+    case 'tend': {
+      const batch = state.batches[t.batchId!];
+      if (!batch) return false;
       t.targetId = batch.stationId;
       break;
+    }
     case 'carryBatch': {
+      const batch = state.batches[t.batchId!];
+      if (!batch) return false;
       const from = potTile(state, batch.id) ?? here;
       const counter = nearestCounterFor(state, batch.recipeId, from);
       if (!counter || !reachable(state, from, workTile(counter))) return false;
       t.targetId = counter.id;
       counter.counter!.incoming.push(t.id);
+      break;
+    }
+    case 'takeOrder': {
+      const tile = tableTile(state, t.partyId);
+      if (!tile || !reachable(state, here, tile)) return false;
+      t.targetId = state.parties[t.partyId!].tableId;
+      break;
+    }
+    case 'plate': {
+      const c = state.customers[t.customerId!];
+      const counter = c?.counterId ? state.objects[c.counterId] : null;
+      if (!c || !counter) return false;
+      const ct = workTile(counter);
+      if (!reachable(state, here, ct)) return false;
+      let pass: PlacedObject | null = null;
+      let bestD = Infinity;
+      for (const o of objectsOfKind(state, 'pass')) {
+        if (!passHasRoom(o)) continue;
+        const pt = passKitchenTile(o);
+        const d = distance(state, ct.x, ct.y, pt.x, pt.y);
+        if (d < bestD) {
+          bestD = d;
+          pass = o;
+        }
+      }
+      if (!pass) return false;
+      t.sourceId = counter.id;
+      t.targetId = pass.id;
+      pass.pass!.incoming.push(t.id);
+      break;
+    }
+    case 'serve': {
+      const c = state.customers[t.customerId!];
+      const pass = c?.plate?.passId ? state.objects[c.plate.passId] : null;
+      const tile = c ? tableTile(state, c.partyId) : null;
+      if (!c || !pass || !tile) return false;
+      if (!reachable(state, here, passDiningTile(pass)) || !reachable(state, passDiningTile(pass), tile)) return false;
+      t.sourceId = pass.id;
+      t.targetId = state.parties[c.partyId].tableId;
       break;
     }
   }
@@ -338,6 +424,7 @@ function releaseReservations(state: GameState, t: Task): void {
   const target = state.objects[t.targetId];
   if (target?.prep && target.prep.reservedBy === t.id) target.prep.reservedBy = null;
   if (target?.counter) target.counter.incoming = target.counter.incoming.filter((id) => id !== t.id);
+  if (target?.pass) target.pass.incoming = target.pass.incoming.filter((id) => id !== t.id);
 }
 
 /** Unclaim the task so someone else can pick it up. */
@@ -352,23 +439,31 @@ export function unclaimTask(state: GameState, t: Task): void {
 
 /**
  * Make an employee drop whatever task they are doing. A carried crate or pot is
- * put down on their tile and its task goes back on the board.
+ * put down on their tile and its task goes back on the board; a dropped plate
+ * is lost and the guest's food is plated again if there's stock.
  */
 export function abandonTask(state: GameState, emp: Employee): void {
   const t = emp.taskId ? state.tasks[emp.taskId] : null;
+  let replateFor: Id | null = null;
   if (emp.carrying) {
     const x = emp.x;
     const y = emp.y;
     if (emp.carrying.kind === 'crate') {
       const c = state.crates[emp.carrying.id];
       if (c) c.loc = { kind: 'floor', x, y };
-    } else {
+    } else if (emp.carrying.kind === 'pot') {
       const b = state.batches[emp.carrying.id];
       if (b) b.pot = { kind: 'floor', x, y };
+    } else {
+      replateFor = emp.carrying.id;
     }
     emp.carrying = null;
   }
-  if (t) unclaimTask(state, t);
+  if (t) {
+    if (replateFor) deleteTask(state, t.id);
+    else unclaimTask(state, t);
+  }
+  if (replateFor) replate(state, replateFor);
   emp.taskId = null;
   emp.toil = 0;
   emp.toilTime = 0;

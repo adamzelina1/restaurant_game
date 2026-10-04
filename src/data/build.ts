@@ -20,6 +20,7 @@ export interface PaletteGroup {
 
 export const PALETTE: PaletteGroup[] = [
   { name: 'Kitchen', items: ['fridge', 'cuttingBoard', 'mixingBench', 'stove', 'grill', 'fryer', 'oven', 'stockPot'] },
-  { name: 'Service', items: ['counter'] },
+  { name: 'Service', items: ['counter', 'pass'] },
+  { name: 'Dining', items: ['table2', 'table4', 'hostStand', 'plant', 'entrance'] },
   { name: 'Staff', items: ['idleSpot', 'couch', 'coffeeMachine'] },
 ];

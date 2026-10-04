@@ -568,3 +568,18 @@ select.preset {
   display: flex;
   gap: 2px;
 }
+
+.hud-rep {
+  white-space: nowrap;
+  color: var(--muted);
+}
+.stars {
+  color: #ffd966;
+  letter-spacing: -1px;
+}
+.stars.dim {
+  color: #444;
+}
+.hud-guests {
+  color: var(--muted);
+}

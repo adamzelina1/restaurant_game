@@ -1,9 +1,8 @@
 import { FIRST_NAMES, STAFF_COLORS } from '../../data/names';
 import { TRAIT_LIST } from '../../data/traits';
 import { PRESET_BY_ID } from '../../data/workTypes';
-import { stationDef } from '../../data/stations';
 import { HIRING_REFRESH, HIRING_REFRESH_COST, MAX_SKILL, SIGNING_HOURS, STAMINA_MAX } from '../constants';
-import { DIRS, isWalkable, workTile, type Tile } from '../grid/grid';
+import { DIRS, isWalkable, objectsOfKind, workTile, type Tile } from '../grid/grid';
 import { pick, rand, randInt, randRange, weightedPick } from '../rng';
 import {
   SKILLS,
@@ -143,7 +142,7 @@ export function findFreeTileNear(state: GameState, x: number, y: number): Tile |
 
 /** Where new staff appear: an idle spot if there is one. */
 function spawnTile(state: GameState): Tile | null {
-  const spot = values(state.objects).find((o) => stationDef(o.type).kind === 'idle');
+  const spot = objectsOfKind(state, 'idle')[0];
   const from = spot ? workTile(spot) : { x: Math.floor(state.grid.width / 2), y: Math.floor(state.grid.height / 2) };
   return findFreeTileNear(state, from.x, from.y);
 }

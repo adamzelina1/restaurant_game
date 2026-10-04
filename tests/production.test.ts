@@ -31,7 +31,7 @@ describe('batch cooking loop', () => {
     const counter = Object.values(s.objects).find((o) => o.counter?.recipeId === 'friedEggs')!;
     expect(counterStock(counter)).toBe(6);
 
-    runUntil(s, () => s.stats.servingsSold >= 6, 600);
+    runUntil(s, () => s.stats.servingsSold >= 6, 2400);
     expect(counterStock(counter)).toBe(0);
     expect(counter.counter!.recipeId).toBeNull();
     expect(s.stats.revenue).toBe(30);
@@ -89,7 +89,7 @@ describe('batch cooking loop', () => {
       if (o.counter) o.counter.recipeId = 'lasagna';
       if (o.counter) o.counter.lots.push({ servings: 5, quality: 1, placedAt: 0, freshFor: 1e9 });
     }
-    s.nextBuyerIn = 1e9;
+    s.nextPartyIn = 1e9;
     const stove = objOfType(s, 'stove');
     step(s, [{ type: 'startBatch', stationId: stove.id, recipeId: 'friedEggs' }]);
     const b = s.batches[stove.cook!.batchId!];

@@ -16,7 +16,7 @@ import {
 } from './state';
 import { newId } from './util';
 
-export const STATE_VERSION = 2;
+export const STATE_VERSION = 3;
 
 const FLOOR_OF = { kitchen: Floor.Kitchen, dining: Floor.Dining, wall: Floor.Wall, staff: Floor.Staff } as const;
 
@@ -32,11 +32,13 @@ export function emptyState(width: number, height: number, seed: number): GameSta
     grid: { width, height, floor: new Array(width * height).fill(Floor.Void) },
     objects: {},
     employees: {},
+    customers: {},
+    parties: {},
     batches: {},
     crates: {},
     tasks: {},
     heat: 0,
-    nextBuyerIn: 5,
+    nextPartyIn: 10,
     unlockedRecipes: RECIPE_LIST.map((r) => r.id),
     reputation: 1,
     hiring: { candidates: [], refreshAt: 0 },
@@ -50,6 +52,8 @@ export function emptyState(width: number, height: number, seed: number): GameSta
       soldByRecipe: {},
       batchesServed: 0,
       wagesPaid: 0,
+      customersServed: 0,
+      customersLost: 0,
       blockedByTile: {},
       trafficByTile: {},
     },
@@ -71,7 +75,9 @@ export function placeObject(state: GameState, p: Placement, tier = 1): PlacedObj
   const o: PlacedObject = { id: newId(state, 'o'), type: p.type, x: p.x, y: p.y, rot: p.rot, tier };
   if (def.kind === 'cook') o.cook = { batchId: null };
   if (def.kind === 'prep') o.prep = { crateId: null, reservedBy: null };
-  if (def.kind === 'counter') o.counter = { recipeId: null, lots: [], incoming: [] };
+  if (def.kind === 'counter') o.counter = { recipeId: null, lots: [], incoming: [], reserved: 0 };
+  if (def.kind === 'table') o.table = { partyId: null };
+  if (def.kind === 'pass') o.pass = { plates: [], incoming: [] };
   state.objects[o.id] = o;
   state.layoutVersion++;
   return o;

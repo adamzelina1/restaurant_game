@@ -63,6 +63,19 @@ export interface CounterSlot {
   lots: Lot[];
   /** Carry tasks heading here. */
   incoming: Id[];
+  /** Servings promised to guests who ordered but haven't been plated yet. */
+  reserved: number;
+}
+
+export interface TableSlot {
+  partyId: Id | null;
+}
+
+export interface PassSlot {
+  /** Guests whose plated food is waiting on the pass. */
+  plates: Id[];
+  /** Plate tasks that will put a plate here. */
+  incoming: Id[];
 }
 
 export interface PlacedObject {
@@ -75,6 +88,8 @@ export interface PlacedObject {
   cook?: CookSlot;
   prep?: PrepSlot;
   counter?: CounterSlot;
+  table?: TableSlot;
+  pass?: PassSlot;
 }
 
 // ---------------------------------------------------------------------------
@@ -143,7 +158,7 @@ export interface Crate {
 // ---------------------------------------------------------------------------
 // Tasks
 
-export type TaskKind = 'deliver' | 'prep' | 'tend' | 'carryBatch';
+export type TaskKind = 'deliver' | 'prep' | 'tend' | 'carryBatch' | 'takeOrder' | 'plate' | 'serve';
 export type TaskStatus = 'blocked' | 'ready' | 'claimed';
 
 export interface Task {
@@ -154,8 +169,11 @@ export interface Task {
   claimedBy: Id | null;
   createdAt: number;
   urgent: boolean;
-  batchId: Id;
+  /** Kitchen tasks belong to a batch; front-of-house tasks to a party/guest. */
+  batchId: Id | null;
   crateId: Id | null;
+  partyId: Id | null;
+  customerId: Id | null;
   /** Resolved on claim: where the item comes from / goes to. */
   sourceId: Id | null;
   targetId: Id | null;
@@ -190,7 +208,8 @@ export interface SkillState {
   passion: Passion;
 }
 
-export type Carry = { kind: 'crate'; id: Id } | { kind: 'pot'; id: Id };
+/** A plate's id is the guest it is for. */
+export type Carry = { kind: 'crate'; id: Id } | { kind: 'pot'; id: Id } | { kind: 'plate'; id: Id };
 
 export type Activity = 'idle' | 'walking' | 'working' | 'blocked' | 'break';
 
@@ -233,6 +252,43 @@ export interface Candidate {
 }
 
 // ---------------------------------------------------------------------------
+// Front of house
+
+export type PartyPhase = 'queue' | 'seating' | 'browsing' | 'waitOrder' | 'waitFood' | 'eating' | 'leaving';
+
+export interface Party {
+  id: Id;
+  size: number;
+  members: Id[];
+  /** Members still waiting outside to come through the entrance. */
+  toSpawn: number;
+  phase: PartyPhase;
+  /** Seconds in the current phase (patience). */
+  phaseTime: number;
+  tableId: Id | null;
+  color: number;
+  angry: boolean;
+  arrivedAt: number;
+  seatedAt: number | null;
+  readyToOrderAt: number | null;
+  orderTakenAt: number | null;
+}
+
+export interface Customer extends Mover {
+  id: Id;
+  partyId: Id;
+  seat: number | null;
+  dish: string | null;
+  /** Counter holding the serving reserved for this guest. */
+  counterId: Id | null;
+  plate: { quality: number; at: 'carried' | 'pass' | 'table'; passId: Id | null } | null;
+  servedAt: number | null;
+  servedBy: Id | null;
+  eatLeft: number;
+  satisfaction: number | null;
+}
+
+// ---------------------------------------------------------------------------
 
 export interface Message {
   id: number;
@@ -249,6 +305,8 @@ export interface Stats {
   soldByRecipe: Record<string, number>;
   batchesServed: number;
   wagesPaid: number;
+  customersServed: number;
+  customersLost: number;
   /** Seconds agents spent blocked, per tile index (blocking heatmap). */
   blockedByTile: Record<number, number>;
   /** Steps taken onto each tile (walking heatmap). */
@@ -269,13 +327,15 @@ export interface GameState {
   grid: Grid;
   objects: Record<Id, PlacedObject>;
   employees: Record<Id, Employee>;
+  customers: Record<Id, Customer>;
+  parties: Record<Id, Party>;
   batches: Record<Id, Batch>;
   crates: Record<Id, Crate>;
   tasks: Record<Id, Task>;
   /** Click speed-up heat meter, 0–100. */
   heat: number;
-  /** Abstract buyers (until real customers arrive): seconds to next buyer. */
-  nextBuyerIn: number;
+  /** Seconds until the next party arrives (while open). */
+  nextPartyIn: number;
   unlockedRecipes: string[];
   /** Reputation in stars, 1–5 (continuous). */
   reputation: number;

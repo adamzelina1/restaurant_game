@@ -7,7 +7,7 @@ import {
 } from '../constants';
 import { findPath } from '../grid/astar';
 import { distanceField } from '../grid/distance';
-import { DIRS, canStepStatic, layout, type Layout } from '../grid/grid';
+import { DIRS, canStepStatic, layout, type Layout, type Mask } from '../grid/grid';
 import type { GameState, Id, Mover } from '../state';
 
 /** What the movement system needs to know about an agent this tick. */
@@ -22,6 +22,8 @@ export interface AgentRef {
   canYield: boolean;
   /** Agents that are not working at a station can be squeezed past. */
   canSwap: boolean;
+  /** Guests are confined to dining floor. */
+  mask: Mask;
 }
 
 const SQRT2 = Math.SQRT2;
@@ -76,9 +78,9 @@ function tileOf(l: Layout, m: Mover): number {
 }
 
 /** Can the agent at (x,y) step by (dx,dy) right now, given agents? */
-function canStep(ctx: Ctx, x: number, y: number, dx: number, dy: number): boolean {
+function canStep(ctx: Ctx, x: number, y: number, dx: number, dy: number, mask: Mask): boolean {
   const { l, occ } = ctx;
-  if (!canStepStatic(l, x, y, dx, dy)) return false;
+  if (!canStepStatic(l, x, y, dx, dy, mask)) return false;
   if (occ.has((y + dy) * l.width + x + dx)) return false;
   if (dx !== 0 && dy !== 0 && occ.has(y * l.width + x + dx) && occ.has((y + dy) * l.width + x)) return false;
   return true;
@@ -108,7 +110,7 @@ function yieldTile(ctx: Ctx, b: AgentRef, avoid: number[]): boolean {
     const [dx, dy] = DIRS[k];
     const n = (b.m.y + dy) * l.width + b.m.x + dx;
     if (avoid.includes(n)) continue;
-    if (!canStep(ctx, b.m.x, b.m.y, dx, dy)) continue;
+    if (!canStep(ctx, b.m.x, b.m.y, dx, dy, b.mask)) continue;
     startStep(ctx, b, b.m.x + dx, b.m.y + dy);
     return true;
   }
@@ -139,7 +141,7 @@ function advance(ctx: Ctx, a: AgentRef, dt: number): boolean {
     const ny = (n - nx) / l.width;
     const dx = nx - m.x;
     const dy = ny - m.y;
-    if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1 && canStep(ctx, m.x, m.y, dx, dy)) {
+    if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1 && canStep(ctx, m.x, m.y, dx, dy, a.mask)) {
       m.detour.shift();
       startStep(ctx, a, nx, ny);
       m.blocked = 0;
@@ -148,7 +150,7 @@ function advance(ctx: Ctx, a: AgentRef, dt: number): boolean {
     m.detour = [];
   }
 
-  const field = distanceField(state, goal.x, goal.y);
+  const field = distanceField(state, goal.x, goal.y, a.mask);
   const curD = field[here];
   if (!Number.isFinite(curD)) {
     m.blocked += dt;
@@ -162,7 +164,7 @@ function advance(ctx: Ctx, a: AgentRef, dt: number): boolean {
   const sidesteps: { dx: number; dy: number }[] = [];
   for (let k = 0; k < 8; k++) {
     const [dx, dy] = DIRS[k];
-    if (!canStepStatic(l, m.x, m.y, dx, dy)) continue;
+    if (!canStepStatic(l, m.x, m.y, dx, dy, a.mask)) continue;
     const n = (m.y + dy) * l.width + m.x + dx;
     const d = field[n];
     if (d < curD - 1e-6) {
@@ -178,7 +180,7 @@ function advance(ctx: Ctx, a: AgentRef, dt: number): boolean {
   progress = progress.sort((p, q) => p.d - q.d);
 
   for (const p of progress) {
-    if (canStep(ctx, m.x, m.y, p.dx, p.dy)) {
+    if (canStep(ctx, m.x, m.y, p.dx, p.dy, a.mask)) {
       startStep(ctx, a, m.x + p.dx, m.y + p.dy);
       m.blocked = 0;
       return true;
@@ -189,7 +191,7 @@ function advance(ctx: Ctx, a: AgentRef, dt: number): boolean {
   //    reset the blocked timer).
   if (m.blocked < SIDESTEP_AFTER && m.blocked + dt >= SIDESTEP_AFTER) {
     for (const s of sidesteps) {
-      if (canStep(ctx, m.x, m.y, s.dx, s.dy)) {
+      if (canStep(ctx, m.x, m.y, s.dx, s.dy, a.mask)) {
         startStep(ctx, a, m.x + s.dx, m.y + s.dy);
         m.blocked += dt;
         return true;
@@ -227,7 +229,7 @@ function advance(ctx: Ctx, a: AgentRef, dt: number): boolean {
   // 3. Re-path around agents with a local A*, once per second while blocked.
   if (m.blocked >= REPATH_AFTER && Math.floor(m.blocked) !== Math.floor(before)) {
     const occupied = (i: number) => i !== here && ctx.occ.has(i);
-    const path = findPath(state, m.x, m.y, goal.x, goal.y, occupied, DETOUR_MAX_EXPANSIONS);
+    const path = findPath(state, m.x, m.y, goal.x, goal.y, occupied, DETOUR_MAX_EXPANSIONS, a.mask);
     if (path && path.length > 0 && path.length <= curD + 12) m.detour = path;
   }
 

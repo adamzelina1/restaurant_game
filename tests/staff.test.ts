@@ -154,7 +154,7 @@ describe('hiring and wages', () => {
 
   it('wages are only charged while open', () => {
     const s = newGame();
-    s.nextBuyerIn = 1e9;
+    s.nextPartyIn = 1e9;
     runFor(s, 600);
     expect(s.stats.wagesPaid).toBe(0);
     const ctr = objOfType(s, 'counter');

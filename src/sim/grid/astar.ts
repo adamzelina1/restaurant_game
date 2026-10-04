@@ -1,5 +1,5 @@
 import type { GameState } from '../state';
-import { DIRS, canStepStatic, layout } from './grid';
+import { DIRS, canStepStatic, layout, type Mask } from './grid';
 import { Heap } from './distance';
 
 const SQRT2 = Math.SQRT2;
@@ -23,6 +23,7 @@ export function findPath(
   gy: number,
   occupied: (i: number) => boolean,
   maxExpansions: number,
+  mask: Mask = 'staff',
 ): number[] | null {
   const l = layout(state);
   const w = l.width;
@@ -55,7 +56,7 @@ export function findPath(
     const cg = g.get(cur)!;
     for (let k = 0; k < 8; k++) {
       const [dx, dy] = DIRS[k];
-      if (!canStepStatic(l, cx, cy, dx, dy)) continue;
+      if (!canStepStatic(l, cx, cy, dx, dy, mask)) continue;
       const n = (cy + dy) * w + (cx + dx);
       if (n !== goal && occupied(n)) continue;
       // No slipping diagonally between two agents.

@@ -5,9 +5,10 @@ import { stationDef } from '../data/stations';
 import type { GameRunner } from '../game/runner';
 import { counterStock } from '../sim/counters/counters';
 import { TICK_DT } from '../sim/constants';
-import { footprint, objectAtTile, rotatedSize, workTile } from '../sim/grid/grid';
+import { footprint, objectAtTile, rotatedSize, seatTiles, workTile, workTiles } from '../sim/grid/grid';
 import { batchProgress, batchTimeLeft } from '../sim/production/batches';
-import { Floor, type Employee, type GameState, type PlacedObject } from '../sim/state';
+import { Floor, type GameState, type Mover, type PlacedObject } from '../sim/state';
+import { patienceUsed } from '../sim/foh/customers';
 import { clickObject } from '../ui/actions';
 import { BuildController } from './BuildMode';
 import { formatDuration } from '../ui/format';
@@ -125,11 +126,18 @@ export class WorldScene extends Phaser.Scene {
   private handleClick(p: Phaser.Input.Pointer): void {
     const wp = this.cameras.main.getWorldPoint(p.x, p.y);
     const s = this.runner.state;
-    // Employees first: they're drawn on top.
+    // Agents first: they're drawn on top.
     for (const e of Object.values(s.employees)) {
       const pos = this.agentPos(e);
       if (Math.hypot(pos.x - wp.x, pos.y - wp.y) < TILE * 0.45) {
         ui.set({ selected: { kind: 'employee', id: e.id }, picker: null });
+        return;
+      }
+    }
+    for (const c of Object.values(s.customers)) {
+      const pos = this.agentPos(c);
+      if (Math.hypot(pos.x - wp.x, pos.y - wp.y) < TILE * 0.4) {
+        ui.set({ selected: { kind: 'customer', id: c.id }, picker: null });
         return;
       }
     }
@@ -244,12 +252,34 @@ export class WorldScene extends Phaser.Scene {
       g.strokeRect(px + 6, py + 6, TILE - 12, TILE - 12);
       return;
     }
+    if (def.kind === 'entrance') {
+      g.fillStyle(def.color, 0.35);
+      g.fillRect(px + 2, py + 2, TILE - 4, TILE - 4);
+      g.lineStyle(1, def.color, 0.9);
+      g.strokeRect(px + 2, py + 2, TILE - 4, TILE - 4);
+      return;
+    }
+    if (def.kind === 'decor') {
+      g.fillStyle(0x6d4c41, 1);
+      g.fillCircle(px + TILE / 2, py + TILE / 2 + 5, 7);
+      g.fillStyle(def.color, 1);
+      g.fillCircle(px + TILE / 2 - 4, py + TILE / 2 - 3, 7);
+      g.fillCircle(px + TILE / 2 + 4, py + TILE / 2 - 3, 7);
+      g.fillCircle(px + TILE / 2, py + TILE / 2 - 8, 7);
+      return;
+    }
+    // Chairs around tables.
+    for (const st of seatTiles(obj)) {
+      g.fillStyle(0x5d4037, 1);
+      g.fillRoundedRect(st.x * TILE + 8, st.y * TILE + 8, TILE - 16, TILE - 16, 3);
+    }
     g.fillStyle(0x000000, 0.35);
     g.fillRoundedRect(px + 3, py + 4, w * TILE - 4, h * TILE - 4, 5);
     g.fillStyle(def.color, 1);
     g.fillRoundedRect(px + 2, py + 2, w * TILE - 4, h * TILE - 4, 5);
     g.lineStyle(1, 0x000000, 0.5);
     g.strokeRoundedRect(px + 2, py + 2, w * TILE - 4, h * TILE - 4, 5);
+    if (def.work.length === 0) return;
     // Facing notch toward the work tile.
     const wt = workTile(obj);
     const cx = px + (w * TILE) / 2;
@@ -329,6 +359,12 @@ export class WorldScene extends Phaser.Scene {
         }
       }
 
+      if (obj.pass) {
+        obj.pass.plates.forEach((cid, i) => {
+          this.drawPlate(g, cx - 7 + (i % 2) * 14, cy - 7 + Math.floor(i / 2) * 14, s.customers[cid]?.dish ?? null);
+        });
+      }
+
       if (obj.counter) {
         const stock = counterStock(obj);
         const rid = obj.counter.recipeId;
@@ -397,9 +433,17 @@ export class WorldScene extends Phaser.Scene {
   private highlight(g: Phaser.GameObjects.Graphics, o: PlacedObject, color: number, alpha = 1): void {
     g.lineStyle(2, color, alpha);
     for (const t of footprint(o)) g.strokeRoundedRect(t.x * TILE + 1, t.y * TILE + 1, TILE - 2, TILE - 2, 5);
-    const wt = workTile(o);
     g.lineStyle(1, color, alpha * 0.7);
-    g.strokeRect(wt.x * TILE + 8, wt.y * TILE + 8, TILE - 16, TILE - 16);
+    for (const wt of workTiles(o)) g.strokeRect(wt.x * TILE + 8, wt.y * TILE + 8, TILE - 16, TILE - 16);
+  }
+
+  private drawPlate(g: Phaser.GameObjects.Graphics, x: number, y: number, recipeId: string | null): void {
+    g.fillStyle(0xf3f3f3, 1);
+    g.fillCircle(x, y, 5);
+    if (recipeId) {
+      g.fillStyle(recipe(recipeId).color, 1);
+      g.fillCircle(x, y, 3);
+    }
   }
 
   private drawCrate(g: Phaser.GameObjects.Graphics, x: number, y: number, ingredient: string, prepped: boolean): void {
@@ -422,7 +466,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   /** Interpolated pixel position (PLAN §2.1 render interpolation). */
-  agentPos(e: Employee): { x: number; y: number } {
+  agentPos(e: Mover): { x: number; y: number } {
     let fx = e.x;
     let fy = e.y;
     if (e.step) {
@@ -460,6 +504,8 @@ export class WorldScene extends Phaser.Scene {
       } else if (e.carrying?.kind === 'pot') {
         const b = s.batches[e.carrying.id];
         if (b) this.drawPot(g, x + 9, y - 6, b.recipeId);
+      } else if (e.carrying?.kind === 'plate') {
+        this.drawPlate(g, x + 9, y - 6, s.customers[e.carrying.id]?.dish ?? null);
       }
       // Stamina bar when tired; "z" while resting.
       if (e.stamina.current < 60) {
@@ -473,6 +519,55 @@ export class WorldScene extends Phaser.Scene {
         this.label(`zz:${e.id}`, x + 10, y - 10 - Math.sin(this.time.now / 300) * 2, 'z', { fontSize: '11px', color: '#b4a7d6', fontStyle: 'bold' });
       }
       this.label(`emp:${e.id}`, x, y - 18, e.name, { fontSize: '9px', backgroundColor: '#00000088', padding: { x: 2, y: 0 } }).setDepth(8);
+    }
+    this.drawCustomers(s);
+  }
+
+  private drawCustomers(s: GameState): void {
+    const g = this.agentG;
+    const sel = ui.state.selected;
+    for (const c of Object.values(s.customers)) {
+      const p = s.parties[c.partyId];
+      if (!p) continue;
+      const { x, y } = this.agentPos(c);
+      g.fillStyle(0x000000, 0.25);
+      g.fillEllipse(x, y + 7, 14, 5);
+      g.fillStyle(p.color, 1);
+      g.fillCircle(x, y, 7.5);
+      const selected = sel?.kind === 'customer' && sel.id === c.id;
+      const angry = p.angry;
+      g.lineStyle(selected ? 2 : 1.5, selected ? 0xffd966 : angry ? 0xe06666 : 0xffffff, selected ? 1 : 0.8);
+      g.strokeCircle(x, y, 7.5);
+      // Food on the table in front of them.
+      if (c.plate?.at === 'table' && p.tableId) {
+        const t = s.objects[p.tableId];
+        if (t) {
+          const tx = (t.x + rotatedSize(t.type, t.rot).w / 2) * TILE;
+          const ty = (t.y + rotatedSize(t.type, t.rot).h / 2) * TILE;
+          const ox = Math.sign(x - tx) * 6;
+          const oy = Math.sign(y - ty) * 5;
+          this.drawPlate(g, tx + ox, ty + oy, c.eatLeft > 0 ? c.dish : null);
+        }
+      }
+      // Thought bubble: what they're waiting for.
+      if (p.phase === 'waitFood' && c.dish && c.plate?.at !== 'table') {
+        g.fillStyle(0xffffff, 0.9);
+        g.fillCircle(x + 8, y - 11, 6);
+        g.fillStyle(recipe(c.dish).color, 1);
+        g.fillCircle(x + 8, y - 11, 3.5);
+      } else if (p.phase === 'waitOrder') {
+        this.label(`ord:${c.id}`, x + 8, y - 12, '?', { fontSize: '10px', color: '#ffffff', fontStyle: 'bold' });
+      } else if (angry) {
+        this.label(`ang:${c.id}`, x, y - 13, '!', { fontSize: '11px', color: '#e06666', fontStyle: 'bold' });
+      }
+      // Patience bar once it's running low.
+      const used = patienceUsed(p);
+      if (used > 0.5 && !angry) {
+        g.fillStyle(0x000000, 0.7);
+        g.fillRect(x - 8, y + 10, 16, 3);
+        g.fillStyle(used > 0.8 ? 0xe06666 : 0xf6b26b, 1);
+        g.fillRect(x - 8, y + 10, 16 * (1 - used), 3);
+      }
     }
   }
 }

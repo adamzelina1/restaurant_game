@@ -92,7 +92,7 @@ export function startBatch(state: GameState, stationId: Id, recipeId: string): b
       };
       state.crates[c.id] = c;
       b.crates.push(c.id);
-      createTask(state, 'deliver', 'Haul', b.id, c.id);
+      createTask(state, 'deliver', 'Haul', { batchId: b.id, crateId: c.id });
     }
   }
   if (totalCrates(r) === 0) startCooking(state, b);
@@ -101,7 +101,7 @@ export function startBatch(state: GameState, stationId: Id, recipeId: string): b
 
 export function startCooking(state: GameState, b: Batch): void {
   b.phase = 'cooking';
-  if (recipe(b.recipeId).cookMode === 'active') createTask(state, 'tend', 'Cook', b.id, null);
+  if (recipe(b.recipeId).cookMode === 'active') createTask(state, 'tend', 'Cook', { batchId: b.id });
 }
 
 /** Called when a crate is loaded into the cooking station. */
@@ -176,7 +176,7 @@ export function requestServe(state: GameState, stationId: Id): boolean {
   const b = st?.cook?.batchId ? state.batches[st.cook.batchId] : null;
   if (!b || b.phase !== 'ready' || b.serveRequested) return false;
   b.serveRequested = true;
-  createTask(state, 'carryBatch', 'Haul', b.id, null, true);
+  createTask(state, 'carryBatch', 'Haul', { batchId: b.id, urgent: true });
   return true;
 }
 

@@ -1,6 +1,8 @@
 import type { GameRunner } from '../game/runner';
 import { HEAT_MAX } from '../sim/constants';
 import { stockByRecipe } from '../sim/counters/counters';
+import { isOpen } from '../sim/economy/wages';
+import { stars } from '../sim/reputation/reputation';
 import { recipe } from '../data/recipes';
 import { formatClock, formatMoney, hex } from './format';
 import { enterBuild, exitBuild } from './buildActions';
@@ -17,7 +19,7 @@ export function Hud({ runner }: { runner: GameRunner }) {
   const s = runner.state;
   const stock = stockByRecipe(s);
   const dishes = Object.entries(stock).filter(([, n]) => n > 0);
-  const open = dishes.length > 0;
+  const open = isOpen(s);
   return (
     <div class="hud panel">
       <div class="hud-money">{formatMoney(s.money)}</div>
@@ -41,6 +43,13 @@ export function Hud({ runner }: { runner: GameRunner }) {
         </div>
       </div>
       <div class={`hud-open ${open ? 'is-open' : ''}`}>{open ? 'OPEN' : 'CLOSED'}</div>
+      <div class="hud-rep" title={`Reputation ${s.reputation.toFixed(2)} stars: more guests, better applicants`}>
+        <span class="stars">{'★'.repeat(stars(s))}</span>
+        <span class="stars dim">{'★'.repeat(5 - stars(s))}</span> {s.reputation.toFixed(1)}
+      </div>
+      <div class="hud-guests" title="Guests inside">
+        🧑 {Object.keys(s.customers).length}
+      </div>
       <div class="hud-stock">
         {dishes.map(([id, n]) => (
           <span class="chip" title={recipe(id).name}>

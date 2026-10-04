@@ -76,3 +76,30 @@ export const HIRING_REFRESH = 6 * 3600;
 export const HIRING_REFRESH_COST = 50;
 /** Signing fee in hours of wage. */
 export const SIGNING_HOURS = 5;
+
+// Front of house (PLAN §6)
+export const PASS_CAPACITY = 4;
+/** Seconds between parties at 1 star with one dish in stock. */
+export const BASE_PARTY_INTERVAL = 75;
+/** Parties waiting for a table beyond this turn away. */
+export const MAX_WAITING_PARTIES = 3;
+export const CUSTOMER_WALK_SPEED = 2.0;
+export const BROWSE_TIME = 8;
+/** Patience per phase, in seconds. */
+export const PATIENCE_SEAT = 120;
+export const PATIENCE_ORDER = 120;
+export const PATIENCE_FOOD = 360;
+export const EAT_TIME = 90;
+export const ORDER_TIME_BASE = 3;
+export const ORDER_TIME_PER_GUEST = 1.5;
+export const PLATE_TIME = 4;
+export const SERVE_TIME = 1;
+/** Total waiting (seat + order + food) that drops the wait score to zero. */
+export const WAIT_BUDGET = 360;
+/** Reputation moves this fraction toward each guest's rating. */
+export const REP_RATE = 0.03;
+export const DECOR_RANGE = 6;
+export const DECOR_BONUS = 0.03;
+export const DECOR_MAX = 0.1;
+/** Quality added by a level-20 plater. */
+export const PLATING_BONUS_MAX = 0.1;

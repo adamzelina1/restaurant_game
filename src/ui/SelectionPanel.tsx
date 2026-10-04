@@ -6,9 +6,12 @@ import type { GameRunner } from '../game/runner';
 import { counterStock, lotQuality } from '../sim/counters/counters';
 import { batchProgress, batchTimeLeft, readyBatchQuality } from '../sim/production/batches';
 import { readyGrace } from '../sim/quality';
-import { SKILLS, WORK_TYPES, type Activity, type Employee, type GameState, type PlacedObject } from '../sim/state';
+import { SKILLS, WORK_TYPES, type Activity, type Customer, type Employee, type GameState, type PlacedObject } from '../sim/state';
+import { PASS_CAPACITY } from '../sim/constants';
+import { patienceUsed } from '../sim/foh/customers';
+import { seatTiles } from '../sim/grid/grid';
 import { speedUpTarget } from '../sim/stations/stations';
-import { describeCrate, describeEmployee } from './describe';
+import { describeCrate, describeCustomer, describeEmployee } from './describe';
 import { formatDuration, formatMoney, hex, pct } from './format';
 import { TRAITS } from '../data/traits';
 import { BREAK_AT } from '../sim/constants';
@@ -23,6 +26,10 @@ export function SelectionPanel({ runner }: { runner: GameRunner }) {
   if (sel.kind === 'employee') {
     const e = s.employees[sel.id];
     return e ? <EmployeeView s={s} e={e} close={close} /> : null;
+  }
+  if (sel.kind === 'customer') {
+    const c = s.customers[sel.id];
+    return c ? <CustomerView s={s} c={c} close={close} /> : null;
   }
   const o = s.objects[sel.id];
   return o ? <ObjectView runner={runner} o={o} close={close} /> : null;
@@ -55,6 +62,16 @@ function ObjectView({ runner, o, close }: { runner: GameRunner; o: PlacedObject;
       {def.kind === 'counter' && <CounterView s={s} o={o} />}
       {def.kind === 'source' && <p class="muted">Unlimited ingredients. Staff fetch one crate per trip.</p>}
       {def.kind === 'idle' && <p class="muted">Idle staff wait here, out of the walkways.</p>}
+      {def.kind === 'table' && <TableView s={s} o={o} />}
+      {def.kind === 'pass' && (
+        <p class="muted">
+          {o.pass!.plates.length} plate{o.pass!.plates.length === 1 ? '' : 's'} waiting to be served (room for {PASS_CAPACITY}). Staff
+          plate food on the kitchen side; servers pick it up on the dining side.
+        </p>
+      )}
+      {def.kind === 'host' && <p class="muted">Guests wait here for a free table.</p>}
+      {def.kind === 'entrance' && <p class="muted">Guests come and go through here.</p>}
+      {def.kind === 'decor' && <p class="muted">Guests at nearby tables are a little happier.</p>}
     </div>
   );
 }
@@ -193,6 +210,46 @@ function CounterView({ s, o }: { s: GameState; o: PlacedObject }) {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function TableView({ s, o }: { s: GameState; o: PlacedObject }) {
+  const p = o.table!.partyId ? s.parties[o.table!.partyId] : null;
+  if (!p) return <p class="muted">Free. Seats {seatTiles(o).length}.</p>;
+  return (
+    <div>
+      <p>
+        Party of {p.size}: {describeCustomer(s, s.customers[p.members[0]])}
+      </p>
+      {patienceUsed(p) > 0 && <Bar value={1 - patienceUsed(p)} color={patienceUsed(p) > 0.8 ? '#e06666' : '#93c47d'} />}
+    </div>
+  );
+}
+
+function CustomerView({ s, c, close }: { s: GameState; c: Customer; close: () => void }) {
+  const p = s.parties[c.partyId];
+  return (
+    <div class="side panel">
+      <div class="modal-head">
+        <h3>
+          <span class="dot big" style={{ background: hex(p?.color ?? 0xffffff) }} />
+          Guest
+          {p && <span class="muted"> · party of {p.size}</span>}
+        </h3>
+        <button class="btn small" onClick={close}>
+          ✕
+        </button>
+      </div>
+      <p>{describeCustomer(s, c)}</p>
+      {c.dish && <p class="muted">Ordered {recipe(c.dish).name}</p>}
+      {p && patienceUsed(p) > 0 && (
+        <>
+          <h4>Patience</h4>
+          <Bar value={1 - patienceUsed(p)} color={patienceUsed(p) > 0.8 ? '#e06666' : '#93c47d'} />
+        </>
+      )}
+      {c.satisfaction !== null && <p>Satisfaction {pct(c.satisfaction)}</p>}
     </div>
   );
 }

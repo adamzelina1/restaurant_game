@@ -1,12 +1,13 @@
-import { employeesAfterMove, employeesDecide, moveEmployees } from './agents/employees';
+import { employeeAgents, employeesAfterMove, employeesDecide } from './agents/employees';
+import { moveAgents } from './agents/movement';
 import { applyCommand, type Command } from './commands';
 import { TICK_DT, TICK_RATE } from './constants';
-import { tickBuyers } from './economy/buyers';
 import { tickWages } from './economy/wages';
 import { tickCooking } from './production/batches';
 import { tickHiring } from './staff/hiring';
 import type { GameState } from './state';
 import { coolHeat } from './stations/stations';
+import { customerAgents, customersAfterMove, customersDecide, tickArrivals } from './foh/customers';
 import { refreshTasks } from './tasks/tasks';
 
 /**
@@ -17,13 +18,16 @@ export function step(state: GameState, commands: readonly Command[] = []): void 
   for (const c of commands) applyCommand(state, c);
   const dt = TICK_DT;
 
+  tickArrivals(state, dt);
+  customersDecide(state, dt);
   refreshTasks(state);
   employeesDecide(state, dt);
-  moveEmployees(state, dt);
+  // Staff and guests share one blocking pass so they block each other (PLAN §6).
+  moveAgents(state, [...employeeAgents(state), ...customerAgents(state)], dt);
   employeesAfterMove(state, dt);
+  customersAfterMove(state);
   tickCooking(state, dt);
   coolHeat(state, dt);
-  tickBuyers(state, dt);
   tickWages(state, dt);
   tickHiring(state);
 

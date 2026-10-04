@@ -2,7 +2,7 @@
 
 import { FLOOR_COSTS, SELL_REFUND, type FloorZone } from '../../data/build';
 import { stationDef } from '../../data/stations';
-import { footprint, inBounds, isFloor, workTiles, type Tile } from '../grid/grid';
+import { footprint, inBounds, isFloor, seatTiles, workTiles, type Tile } from '../grid/grid';
 import { placeObject } from '../newGame';
 import { Floor, type GameState, type Id, type PlacedObject, type Rot } from '../state';
 import { message, spend, values } from '../util';
@@ -26,6 +26,8 @@ function occupiedBy(state: GameState, except: Id | null): { foot: Set<string>; w
     if (o.id === except) continue;
     for (const t of footprint(o)) foot.add(`${t.x},${t.y}`);
     if (!stationDef(o.type).walkable) for (const t of workTiles(o)) work.add(`${t.x},${t.y}`);
+    // Chairs stay clear too.
+    for (const t of seatTiles(o)) work.add(`${t.x},${t.y}`);
   }
   return { foot, work };
 }
@@ -42,19 +44,24 @@ export function placementError(
   const def = stationDef(type);
   const probe = { type, x, y, rot };
   const fp = footprint(probe);
-  const wts = workTiles(probe);
+  const wts = [...workTiles(probe), ...seatTiles(probe)];
+  const floorAt = (t: Tile) => state.grid.floor[t.y * state.grid.width + t.x];
   const { foot, work } = occupiedBy(state, movingId);
   const agents = agentTiles(state);
   for (const t of fp) {
-    if (!inBounds(state, t.x, t.y) || !isFloor(state.grid.floor[t.y * state.grid.width + t.x])) return 'Must be on floor';
+    if (!inBounds(state, t.x, t.y) || !isFloor(floorAt(t))) return 'Must be on floor';
+    if (def.dining && floorAt(t) !== Floor.Dining) return 'Must be on dining floor';
     if (foot.has(`${t.x},${t.y}`)) return 'Overlaps another object';
     if (!def.walkable && work.has(`${t.x},${t.y}`)) return "Blocks another object's work tile";
     if (!def.walkable && agents.has(`${t.x},${t.y}`)) return 'Someone is standing there';
   }
   if (!def.walkable) {
     const fpSet = new Set(fp.map((t) => `${t.x},${t.y}`));
+    for (const t of seatTiles(probe)) {
+      if (!inBounds(state, t.x, t.y) || floorAt(t) !== Floor.Dining) return 'Chairs must be on dining floor';
+    }
     for (const t of wts) {
-      if (!inBounds(state, t.x, t.y) || !isFloor(state.grid.floor[t.y * state.grid.width + t.x])) return 'Work tile must be on floor';
+      if (!inBounds(state, t.x, t.y) || !isFloor(floorAt(t))) return 'Work tile must be on floor';
       if (foot.has(`${t.x},${t.y}`) || fpSet.has(`${t.x},${t.y}`)) return 'Work tile is blocked';
     }
   }
@@ -63,6 +70,8 @@ export function placementError(
 
 /** Busy objects can't be moved or sold (PLAN §8). */
 export function busyReason(state: GameState, o: PlacedObject): string | null {
+  if (o.table?.partyId) return 'Guests are using it';
+  if (o.pass && (o.pass.plates.length > 0 || o.pass.incoming.length > 0)) return 'Plates are on it';
   if (o.cook?.batchId) return 'It has a batch in progress';
   if (o.prep && (o.prep.crateId || o.prep.reservedBy)) return 'A crate is on it';
   if (o.counter && (o.counter.incoming.length > 0 || o.counter.lots.length > 0)) return 'It still holds food';

@@ -1,4 +1,3 @@
-import { stationDef } from '../../data/stations';
 import { clearGoal, isAt, setGoal } from '../agents/movement';
 import {
   BREAK_AT,
@@ -11,7 +10,7 @@ import {
   STAMINA_WALK_FACTOR,
 } from '../constants';
 import { distance } from '../grid/distance';
-import { workTiles, type Tile } from '../grid/grid';
+import { objectsOfKind, workTiles, type Tile } from '../grid/grid';
 import type { Employee, GameState, Id } from '../state';
 import { clamp, values } from '../util';
 import { traitDrainMult } from './traits';
@@ -23,8 +22,7 @@ export interface Seat extends Tile {
 
 export function restSeats(state: GameState): Seat[] {
   const out: Seat[] = [];
-  for (const o of values(state.objects)) {
-    if (stationDef(o.type).kind !== 'rest') continue;
+  for (const o of objectsOfKind(state, 'rest')) {
     workTiles(o).forEach((t, i) => out.push({ ...t, objectId: o.id, seat: i }));
   }
   return out;
@@ -89,8 +87,7 @@ export function runBreak(state: GameState, emp: Employee): boolean {
 /** Coffee machines near the resting employee speed up recovery. */
 function recoveryMult(state: GameState, emp: Employee): number {
   let n = 0;
-  for (const o of values(state.objects)) {
-    if (stationDef(o.type).kind !== 'boost') continue;
+  for (const o of objectsOfKind(state, 'boost')) {
     if (Math.max(Math.abs(o.x - emp.x), Math.abs(o.y - emp.y)) <= COFFEE_RANGE) n++;
   }
   return 1 + COFFEE_BOOST * Math.min(2, n);

@@ -1,7 +1,6 @@
 import { INGREDIENTS } from '../../data/ingredients';
-import { stationDef } from '../../data/stations';
 import { distance } from '../grid/distance';
-import { workTile } from '../grid/grid';
+import { objectsOfKind, workTile } from '../grid/grid';
 import { rand } from '../rng';
 import { empWalkSpeed } from '../skills';
 import { isResting, needsBreak, runBreak, startBreak, tickStamina } from '../staff/stamina';
@@ -10,7 +9,7 @@ import type { Employee, GameState, Id } from '../state';
 import { runTask } from '../tasks/execute';
 import { abandonTask, pickTask } from '../tasks/tasks';
 import { message, values } from '../util';
-import { clearGoal, moveAgents, setGoal, type AgentRef } from './movement';
+import { clearGoal, setGoal, type AgentRef } from './movement';
 
 /** Average seconds of carrying per trip, to spread a per-trip drop chance over time. */
 const AVG_CARRY_SECONDS = 4;
@@ -18,7 +17,7 @@ const AVG_CARRY_SECONDS = 4;
 /** Idle staff walk to an idle spot so they're out of the walkways. */
 function assignIdleSpots(state: GameState, idle: Employee[]): void {
   if (idle.length === 0) return;
-  const spots = values(state.objects).filter((o) => stationDef(o.type).kind === 'idle');
+  const spots = objectsOfKind(state, 'idle');
   const taken = new Set<Id>();
   const pending: Employee[] = [];
   // Staff already standing on (or heading to) a spot keep it.
@@ -82,6 +81,7 @@ export function employeeAgents(state: GameState): AgentRef[] {
       order: tier * 10000 + i++,
       canYield: !t && !emp.onBreak,
       canSwap: emp.activity !== 'working' && !resting,
+      mask: 'staff',
     });
   }
   return out;
@@ -110,6 +110,3 @@ export function employeesAfterMove(state: GameState, dt: number): void {
   }
 }
 
-export function moveEmployees(state: GameState, dt: number): void {
-  moveAgents(state, employeeAgents(state), dt);
-}

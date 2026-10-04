@@ -35,9 +35,11 @@ export const STARTER = {
     { floor: 'kitchen', x: 1, y: 1, w: 13, h: 11 },
     { floor: 'wall', x: 14, y: 0, w: 14, h: 18 },
     { floor: 'dining', x: 15, y: 1, w: 12, h: 16 },
-    // Counter gap between kitchen and dining, and a staff door.
-    { floor: 'kitchen', x: 14, y: 3, w: 1, h: 5 },
+    // Counter and pass gap between kitchen and dining, and a staff door.
+    { floor: 'kitchen', x: 14, y: 3, w: 1, h: 6 },
     { floor: 'kitchen', x: 14, y: 10, w: 1, h: 1 },
+    // Front door.
+    { floor: 'dining', x: 27, y: 9, w: 1, h: 1 },
     // Staff room below the kitchen, through a door at (9,12).
     { floor: 'wall', x: 6, y: 12, w: 8, h: 6 },
     { floor: 'staff', x: 7, y: 13, w: 6, h: 4 },
@@ -61,6 +63,18 @@ export const STARTER = {
     { type: 'counter', x: 14, y: 5, rot: 1 },
     { type: 'counter', x: 14, y: 6, rot: 1 },
     { type: 'counter', x: 14, y: 7, rot: 1 },
+    // The pass: plated from the kitchen (13,8), picked up from the dining room (15,8).
+    { type: 'pass', x: 14, y: 8, rot: 1 },
+    // Dining room.
+    { type: 'entrance', x: 27, y: 9, rot: 0 },
+    { type: 'hostStand', x: 25, y: 7, rot: 0 },
+    { type: 'table4', x: 18, y: 3, rot: 0 },
+    { type: 'table4', x: 19, y: 9, rot: 0 },
+    { type: 'table2', x: 23, y: 3, rot: 0 },
+    { type: 'table2', x: 19, y: 14, rot: 0 },
+    { type: 'table2', x: 23, y: 14, rot: 0 },
+    { type: 'plant', x: 26, y: 1, rot: 0 },
+    { type: 'plant', x: 15, y: 16, rot: 0 },
     // Idle spots along the west wall.
     { type: 'idleSpot', x: 1, y: 5, rot: 0 },
     { type: 'idleSpot', x: 1, y: 6, rot: 0 },

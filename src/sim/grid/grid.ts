@@ -1,4 +1,4 @@
-import { stationDef } from '../../data/stations';
+import { stationDef, type StationKind } from '../../data/stations';
 import { Floor, type GameState, type Id, type PlacedObject, type Rot } from '../state';
 
 export interface Tile {
@@ -54,6 +54,11 @@ export function workTiles(obj: { type: string; x: number; y: number; rot: Rot })
   return stationDef(obj.type).work.map((w) => localToWorld(obj, w.dx, w.dy));
 }
 
+/** Chair tiles of a table, in world space. */
+export function seatTiles(obj: { type: string; x: number; y: number; rot: Rot }): Tile[] {
+  return (stationDef(obj.type).seats ?? []).map((s) => localToWorld(obj, s.dx, s.dy));
+}
+
 /** The primary work tile, where an agent stands to use the object. */
 export function workTile(obj: PlacedObject): Tile {
   return workTiles(obj)[0];
@@ -62,16 +67,26 @@ export function workTile(obj: PlacedObject): Tile {
 // ---------------------------------------------------------------------------
 // Derived layout data, cached per grid object and invalidated by layoutVersion.
 
+/** Who is walking: staff may use any floor; guests stay on dining floor. */
+export type Mask = 'staff' | 'guest';
+
 export interface Layout {
   version: number;
   width: number;
   height: number;
-  /** 1 = an agent may stand here. */
+  /** 1 = staff may stand here. */
   walkable: Uint8Array;
+  /** 1 = guests may stand here (dining floor only). */
+  guestWalkable: Uint8Array;
   /** Object occupying each tile ('' for none). Walkable markers are not listed. */
   objectAt: Id[];
-  /** Distance fields keyed by target tile index. */
+  /** Distance fields keyed by target tile index * 2 + (guest ? 1 : 0). */
   fields: Map<number, Float32Array>;
+  /** Objects in creation order, and grouped by kind. Objects are only added or
+   *  removed together with a layout change, so these stay valid until then. */
+  objects: PlacedObject[];
+  byKind: Map<StationKind, PlacedObject[]>;
+  byType: Map<string, PlacedObject[]>;
 }
 
 const cache = new WeakMap<object, Layout>();
@@ -81,21 +96,59 @@ export function layout(state: GameState): Layout {
   if (cached && cached.version === state.layoutVersion) return cached;
   const { width, height, floor } = state.grid;
   const walkable = new Uint8Array(width * height);
+  const guestWalkable = new Uint8Array(width * height);
   const objectAt: Id[] = new Array(width * height).fill('');
-  for (let i = 0; i < floor.length; i++) walkable[i] = isFloor(floor[i]) ? 1 : 0;
-  for (const obj of Object.values(state.objects)) {
+  for (let i = 0; i < floor.length; i++) {
+    walkable[i] = isFloor(floor[i]) ? 1 : 0;
+    guestWalkable[i] = floor[i] === Floor.Dining ? 1 : 0;
+  }
+  const objects = Object.values(state.objects);
+  const byKind = new Map<StationKind, PlacedObject[]>();
+  const byType = new Map<string, PlacedObject[]>();
+  for (const obj of objects) {
     const def = stationDef(obj.type);
+    if (!byKind.has(def.kind)) byKind.set(def.kind, []);
+    byKind.get(def.kind)!.push(obj);
+    if (!byType.has(obj.type)) byType.set(obj.type, []);
+    byType.get(obj.type)!.push(obj);
     if (def.walkable) continue;
     for (const t of footprint(obj)) {
       if (!inBounds(state, t.x, t.y)) continue;
       const i = t.y * width + t.x;
       walkable[i] = 0;
+      guestWalkable[i] = 0;
       objectAt[i] = obj.id;
     }
   }
-  const l: Layout = { version: state.layoutVersion, width, height, walkable, objectAt, fields: new Map() };
+  const l: Layout = {
+    version: state.layoutVersion,
+    width,
+    height,
+    walkable,
+    guestWalkable,
+    objectAt,
+    fields: new Map(),
+    objects,
+    byKind,
+    byType,
+  };
   cache.set(state.grid, l);
   return l;
+}
+
+const NONE: PlacedObject[] = [];
+
+/** All placed objects (cached; don't mutate the array). */
+export function allObjects(state: GameState): PlacedObject[] {
+  return layout(state).objects;
+}
+
+export function objectsOfKind(state: GameState, kind: StationKind): PlacedObject[] {
+  return layout(state).byKind.get(kind) ?? NONE;
+}
+
+export function objectsOfType(state: GameState, type: string): PlacedObject[] {
+  return layout(state).byType.get(type) ?? NONE;
 }
 
 export function isWalkable(state: GameState, x: number, y: number): boolean {
@@ -108,7 +161,7 @@ export function objectAtTile(state: GameState, x: number, y: number): PlacedObje
   const id = layout(state).objectAt[y * state.grid.width + x];
   if (id) return state.objects[id] ?? null;
   // Walkable markers (idle spots) are not in objectAt.
-  for (const o of Object.values(state.objects)) {
+  for (const o of allObjects(state)) {
     if (o.x === x && o.y === y) return o;
   }
   return null;
@@ -124,14 +177,19 @@ export const DIRS: readonly [number, number][] = [
   [1, 1], [1, -1], [-1, 1], [-1, -1],
 ];
 
+export function walkMask(l: Layout, mask: Mask): Uint8Array {
+  return mask === 'guest' ? l.guestWalkable : l.walkable;
+}
+
 /** Can a step from (x,y) by (dx,dy) be taken on the static layout? No corner cutting. */
-export function canStepStatic(l: Layout, x: number, y: number, dx: number, dy: number): boolean {
+export function canStepStatic(l: Layout, x: number, y: number, dx: number, dy: number, mask: Mask = 'staff'): boolean {
   const nx = x + dx;
   const ny = y + dy;
   if (nx < 0 || ny < 0 || nx >= l.width || ny >= l.height) return false;
-  if (!l.walkable[ny * l.width + nx]) return false;
+  const w = mask === 'guest' ? l.guestWalkable : l.walkable;
+  if (!w[ny * l.width + nx]) return false;
   if (dx !== 0 && dy !== 0) {
-    if (!l.walkable[y * l.width + nx] || !l.walkable[ny * l.width + x]) return false;
+    if (!w[y * l.width + nx] || !w[ny * l.width + x]) return false;
   }
   return true;
 }

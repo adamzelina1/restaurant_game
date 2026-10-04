@@ -4,7 +4,7 @@ import { recipe } from '../../data/recipes';
 import { stationDef } from '../../data/stations';
 import { BASE_WALK_SPEED, CARRY_CRATE_SPEED } from '../constants';
 import { distanceField } from '../grid/distance';
-import { DIRS, canStepStatic, layout, workTile, workTiles, type Layout, type Tile } from '../grid/grid';
+import { DIRS, canStepStatic, layout, objectsOfKind, objectsOfType, seatTiles, workTile, workTiles, type Layout, type Mask, type Tile } from '../grid/grid';
 import type { GameState, Id, PlacedObject } from '../state';
 import { values } from '../util';
 
@@ -14,25 +14,26 @@ export interface LayoutProblem {
   message: string;
 }
 
-function neighbours(l: Layout, i: number): number[] {
+function neighbours(l: Layout, i: number, mask: Mask = 'staff'): number[] {
   const x = i % l.width;
   const y = (i - x) / l.width;
   const out: number[] = [];
-  for (const [dx, dy] of DIRS) if (canStepStatic(l, x, y, dx, dy)) out.push((y + dy) * l.width + x + dx);
+  for (const [dx, dy] of DIRS) if (canStepStatic(l, x, y, dx, dy, mask)) out.push((y + dy) * l.width + x + dx);
   return out;
 }
 
 /** Connected component id per tile (-1 for non-walkable). */
-function components(l: Layout): Int32Array {
+function components(l: Layout, mask: Mask = 'staff'): Int32Array {
   const comp = new Int32Array(l.width * l.height).fill(-1);
+  const walk = mask === 'guest' ? l.guestWalkable : l.walkable;
   let next = 0;
   for (let i = 0; i < comp.length; i++) {
-    if (!l.walkable[i] || comp[i] !== -1) continue;
+    if (!walk[i] || comp[i] !== -1) continue;
     const stack = [i];
     comp[i] = next;
     while (stack.length) {
       const c = stack.pop()!;
-      for (const n of neighbours(l, c)) {
+      for (const n of neighbours(l, c, mask)) {
         if (comp[n] === -1) {
           comp[n] = next;
           stack.push(n);
@@ -82,6 +83,27 @@ export function validateLayout(state: GameState): LayoutProblem[] {
     const c = comp[y * l.width + x];
     if (c !== -1 && c !== main) {
       problems.push({ tile: it.tile, objectId: it.objectId, message: `${it.what} can't be reached` });
+    }
+  }
+
+  // Guests must be able to walk (on dining floor) from the entrance to every chair and the host stand.
+  const door = objectsOfKind(state, 'entrance')[0];
+  if (door) {
+    const gcomp = components(l, 'guest');
+    const dt = workTile(door);
+    const home = gcomp[dt.y * l.width + dt.x];
+    const guestSpots: { tile: Tile; objectId: Id; what: string }[] = [];
+    for (const o of values(state.objects)) {
+      const def = stationDef(o.type);
+      for (const s of seatTiles(o)) guestSpots.push({ tile: s, objectId: o.id, what: `${def.name} chair` });
+      if (def.kind === 'host') guestSpots.push({ tile: workTile(o), objectId: o.id, what: def.name });
+    }
+    for (const g of guestSpots) {
+      const { x, y } = g.tile;
+      const inside = x >= 0 && y >= 0 && x < l.width && y < l.height;
+      if (!inside || home === -1 || gcomp[y * l.width + x] !== home) {
+        problems.push({ tile: g.tile, objectId: g.objectId, message: `Guests can't reach a ${g.what.toLowerCase()} from the entrance` });
+      }
     }
   }
   return problems;
@@ -207,7 +229,7 @@ export function routePreview(state: GameState, stationId: Id, recipeId: string):
   const empty: RoutePreview = { legs: [], tiles: 0, seconds: 0, error: null };
   if (!st) return { ...empty, error: 'No station' };
   const stTile = workTile(st);
-  const fridges = values(state.objects).filter((o) => stationDef(o.type).kind === 'source');
+  const fridges = objectsOfKind(state, 'source');
   const fridge = nearest(state, fridges, stTile);
   if (!fridge) return { ...empty, error: 'No fridge' };
   const fTile = workTile(fridge);
@@ -220,7 +242,7 @@ export function routePreview(state: GameState, stationId: Id, recipeId: string):
     let path: Tile[];
     let perCrate: number;
     if (line.prep) {
-      const preps = values(state.objects).filter((o) => o.type === line.prep!.station);
+      const preps = objectsOfType(state, line.prep!.station);
       const prep = nearest(state, preps, fTile);
       if (!prep) return { ...empty, error: `No ${stationDef(line.prep.station).name}` };
       const pTile = workTile(prep);

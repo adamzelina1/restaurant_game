@@ -1,9 +1,9 @@
 import { decayedQuality } from '../quality';
 import type { GameState, Lot, PlacedObject } from '../state';
-import { values } from '../util';
+import { objectsOfKind } from '../grid/grid';
 
 export function counters(state: GameState): PlacedObject[] {
-  return values(state.objects).filter((o) => !!o.counter);
+  return objectsOfKind(state, 'counter');
 }
 
 export function counterStock(c: PlacedObject): number {
@@ -45,6 +45,40 @@ export function stockQuality(state: GameState, recipeId: string): number | null 
   return n > 0 ? q / n : null;
 }
 
+/** Servings on this counter not yet promised to a guest. */
+export function counterAvailable(c: PlacedObject): number {
+  return c.counter ? counterStock(c) - c.counter.reserved : 0;
+}
+
+/** Unpromised servings per recipe across all counters. */
+export function availableByRecipe(state: GameState): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const c of counters(state)) {
+    const r = c.counter!.recipeId;
+    if (!r) continue;
+    out[r] = (out[r] ?? 0) + Math.max(0, counterAvailable(c));
+  }
+  return out;
+}
+
+export function totalAvailable(state: GameState): number {
+  let n = 0;
+  for (const c of counters(state)) n += Math.max(0, counterAvailable(c));
+  return n;
+}
+
+/** Take the oldest serving from a specific counter. Returns its quality, or null. */
+export function takeServingFrom(state: GameState, c: PlacedObject): number | null {
+  if (!c.counter) return null;
+  let best: Lot | null = null;
+  for (const lot of c.counter.lots) if (lot.servings > 0 && (!best || lot.placedAt < best.placedAt)) best = lot;
+  if (!best) return null;
+  const q = lotQuality(state, best);
+  best.servings--;
+  tidyCounter(c);
+  return q;
+}
+
 /** Take one serving of a recipe (oldest first). Returns its quality, or null. */
 export function takeServing(state: GameState, recipeId: string): number | null {
   let best: { c: PlacedObject; lot: Lot } | null = null;
@@ -66,5 +100,5 @@ export function tidyCounter(c: PlacedObject): void {
   const cs = c.counter;
   if (!cs) return;
   cs.lots = cs.lots.filter((l) => l.servings > 0);
-  if (cs.lots.length === 0 && cs.incoming.length === 0) cs.recipeId = null;
+  if (cs.lots.length === 0 && cs.incoming.length === 0 && cs.reserved <= 0) cs.recipeId = null;
 }

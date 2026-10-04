@@ -18,6 +18,21 @@ export const MIGRATIONS: Record<number, Migration> = {
     }
     return s;
   },
+  // v3: front of house (guests, tables, the pass) replaces abstract buyers.
+  2: (s) => {
+    s.customers ??= {};
+    s.parties ??= {};
+    s.nextPartyIn ??= 10;
+    delete s.nextBuyerIn;
+    s.stats.customersServed ??= 0;
+    s.stats.customersLost ??= 0;
+    for (const o of Object.values<any>(s.objects)) if (o.counter) o.counter.reserved ??= 0;
+    for (const t of Object.values<any>(s.tasks)) {
+      t.partyId ??= null;
+      t.customerId ??= null;
+    }
+    return s;
+  },
 };
 
 export function migrate(state: any): any {

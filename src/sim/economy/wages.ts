@@ -1,10 +1,10 @@
-import { totalStock } from '../counters/counters';
+import { isOpenForBusiness } from '../foh/customers';
 import type { GameState } from '../state';
 import { values } from '../util';
 
-/** The restaurant is open while any counter has stock (PLAN §6). */
+/** Open while any counter has stock or guests are still inside (PLAN §6). */
 export function isOpen(state: GameState): boolean {
-  return totalStock(state) > 0;
+  return isOpenForBusiness(state);
 }
 
 export function payrollPerHour(state: GameState): number {
