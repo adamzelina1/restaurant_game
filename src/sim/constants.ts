@@ -78,7 +78,9 @@ export const SERVE_TIME = 1;
 /** Total waiting (seat + order + food) that drops the wait score to zero. */
 export const WAIT_BUDGET = 360;
 /** Reputation moves this fraction toward each guest's rating. */
-export const REP_RATE = 0.03;
+export const REP_RATE = 0.01;
+/** Satisfaction below this rates 1 star; the 1–5 stars span the rest. */
+export const REP_SAT_FLOOR = 0.5;
 export const DECOR_RANGE = 6;
 export const DECOR_BONUS = 0.03;
 export const DECOR_MAX = 0.1;

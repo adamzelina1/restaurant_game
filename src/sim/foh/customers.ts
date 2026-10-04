@@ -177,7 +177,7 @@ function decorBonus(state: GameState, p: Party): number {
 /** Satisfaction = f(wait times, dish quality incl. plating, decor) (PLAN §6). */
 export function satisfaction(waited: number, quality: number, decor: number): number {
   const waitScore = clamp(1 - waited / WAIT_BUDGET, 0, 1);
-  return clamp(0.2 + 0.45 * quality + 0.35 * waitScore + decor, 0, 1);
+  return clamp(0.15 + 0.55 * quality + 0.25 * waitScore + decor, 0, 1);
 }
 
 function waitedFor(p: Party, c: Customer): number {

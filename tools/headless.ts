@@ -1,6 +1,6 @@
 // Headless runner (PLAN §12): run the sim with no rendering.
 //
-//   npm run headless -- balance [hours] [short|long|best]
+//   npm run headless -- balance [hours] [smart|short|long|best]
 //   npm run headless -- stress [trials]
 //   npm run headless -- bench
 //   npm run headless -- offline [hours]
@@ -23,12 +23,24 @@ function pad(s: string | number, n: number): string {
 
 function balance(hours: number, strategy: Strategy): void {
   const s = newGame(1);
-  s.money = 2000;
+  // The naive strategies need a cushion; 'smart' plays from the real start.
+  if (strategy !== 'smart') s.money = 2000;
   const ticks = hours * 3600 * TICK_RATE;
   const t0 = performance.now();
+  const every = Math.max(1, Math.round(hours / 12));
+  console.log(`\n  hour    money  rep  staff recipes  served  lost  sold/h`);
+  let lastSold = 0;
   for (let i = 0; i < ticks; i++) {
     // The bot acts once per sim second, like a very attentive player.
     step(s, i % TICK_RATE === 0 ? botCommands(s, strategy) : []);
+    if ((i + 1) % (every * 3600 * TICK_RATE) === 0) {
+      const h = (i + 1) / (3600 * TICK_RATE);
+      console.log(
+        `  ${pad(h, 6)} ${pad('$' + Math.round(s.money), 8)} ${pad(s.reputation.toFixed(1), 4)} ${pad(Object.keys(s.employees).length, 5)} ` +
+          `${pad(s.unlockedRecipes.length, 7)} ${pad(s.stats.customersServed, 7)} ${pad(s.stats.customersLost, 5)} ${Math.round((s.stats.servingsSold - lastSold) / every)}`,
+      );
+      lastSold = s.stats.servingsSold;
+    }
   }
   const ms = performance.now() - t0;
   const income = s.stats.revenue + s.stats.tips;
@@ -157,7 +169,7 @@ function offline(hours: number): void {
 }
 
 const [cmd = 'balance', a, b] = process.argv.slice(2);
-if (cmd === 'balance') balance(Number(a ?? 8), (b as Strategy) ?? 'best');
+if (cmd === 'balance') balance(Number(a ?? 8), (b as Strategy) ?? 'smart');
 else if (cmd === 'stress') stress(Number(a ?? 40));
 else if (cmd === 'bench') bench();
 else if (cmd === 'offline') for (const h of a ? [Number(a)] : [1, 4, 12]) offline(h);

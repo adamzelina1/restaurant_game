@@ -16,8 +16,22 @@ A browser restaurant-management idle game: **ChefVille meets RimWorld**.
 
 ## 0. Implementation status (handoff)
 
-**Read this first if you're picking the project up.** Milestones M0–M5 are built,
-tested and pushed (`main` on github.com/adamzelina1/restaurant_game). M6–M9 remain.
+**Read this first if you're picking the project up.** Milestones M0–M8 are built
+and tested (M6–M8 committed locally, not yet pushed). M9 (polish) is in progress.
+
+**M6–M8 summary:** dirty tables → Bus → dish pit → Dishes → clean-plate rack
+(`src/sim/foh/dishes.ts`); recipe unlocks, mastery stars, equipment tiers
+(`src/sim/progression/`, `src/data/equipment.ts`, recipe book UI); coarse
+offline model + rolling online stats (`src/sim/offline/`, `economy/rolling.ts`),
+welcome-back report, tab badge, opt-in notifications (`src/ui/notify.ts`).
+Save format v7. `npm run headless -- offline` compares the offline model to the
+tick sim; `balance` now defaults to a demand-aware `smart` bot.
+
+**M9 so far:** reputation retuned (stars now hinge on food quality:
+`starsFor` in `reputation.ts`, `REP_RATE` 0.01); 24h smart run reaches ~2.9★
+with 5/6 recipes. **M9 left:** sound, juice (+$ floats), art pass (sprite keys),
+HUD overlapping the top kitchen row / wrapping on narrow windows, further tuning
+(income is demand-capped ~170 guests/h; staff mostly idle late game).
 
 ### Done
 
@@ -712,10 +726,10 @@ hour.
 | M3 | Skills 0–20 + XP + passions, traits, hiring board, wages, **priority grid UI + presets** (stamina + staff room dropped) | Staff management | ✅ done |
 | M4 | Build mode: place/move/rotate, counters, floor expansion, reachability validation, work-tile display, chokepoint warnings, route preview, heatmaps | Layout optimization | ✅ done |
 | M5 | FOH phase 1: customers (flat traffic, blocking), tables, open/closed, Take orders + Plate + Serve, Service skill, patience, tips, reputation | Full service loop | ✅ done |
-| M6 | FOH phase 2: dirty tables, Bus + Dishes, dish pit, clean-plate stock | Second logistics puzzle | to do |
-| M7 | Progression: recipe book unlocks, recipe mastery stars, equipment tiers, star-gated unlocks | Long-term goals | to do |
-| M8 | Offline catch-up model, welcome-back report, ready notifications (save migrations and export/import already done) | True idle game | to do |
-| M9 | Art pass, sound, juice, headless balance runs, tuning | Release candidate | to do |
+| M6 | FOH phase 2: dirty tables, Bus + Dishes, dish pit, clean-plate stock | Second logistics puzzle | ✅ done |
+| M7 | Progression: recipe book unlocks, recipe mastery stars, equipment tiers, star-gated unlocks | Long-term goals | ✅ done |
+| M8 | Offline catch-up model, welcome-back report, ready notifications (save migrations and export/import already done) | True idle game | ✅ done |
+| M9 | Art pass, sound, juice, headless balance runs, tuning | Release candidate | in progress |
 
 The headless runner (`tools/headless.ts`) was built in M2. It:
 
