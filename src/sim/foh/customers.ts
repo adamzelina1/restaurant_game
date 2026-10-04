@@ -18,6 +18,8 @@ import {
 } from '../constants';
 import { availableByRecipe, totalAvailable } from '../counters/counters';
 import { varietyMult } from '../economy/demand';
+import { recordGuest, recordSeating } from '../economy/rolling';
+import { recordSale } from '../economy/sales';
 import { distance } from '../grid/distance';
 import { DIRS, allObjects, canStepStatic, layout, objectsOfKind, seatTiles, workTile, workTiles, type Tile } from '../grid/grid';
 import { reputationTrafficMult, rateVisit } from '../reputation/reputation';
@@ -31,6 +33,8 @@ import { clamp, message, newId, values } from '../util';
 
 const PARTY_SIZES = [1, 2, 3, 4];
 const PARTY_WEIGHTS = [0.3, 0.4, 0.15, 0.15];
+/** Mean guests per party (for the offline demand model). */
+export const AVG_PARTY_SIZE = PARTY_SIZES.reduce((n, s, i) => n + s * PARTY_WEIGHTS[i], 0);
 
 export function entrance(state: GameState): PlacedObject | null {
   return objectsOfKind(state, 'entrance')[0] ?? null;
@@ -198,13 +202,46 @@ function pay(state: GameState, p: Party): void {
     const server = c.servedBy ? state.employees[c.servedBy] : null;
     const price = servingPrice(state, c.dish);
     const tip = Math.round(price * (0.05 + 0.35 * c.satisfaction) * (server ? traitTipMult(server) : 1) * 100) / 100;
-    state.money += price + tip;
-    state.stats.revenue += price;
-    state.stats.tips += tip;
-    state.stats.servingsSold++;
-    state.stats.soldByRecipe[c.dish] = (state.stats.soldByRecipe[c.dish] ?? 0) + 1;
-    state.stats.customersServed++;
+    recordSale(state, c.dish, price, tip);
     rateVisit(state, c.satisfaction);
+    recordGuest(state, c.satisfaction, c.plate.quality, tip / price);
+  }
+}
+
+/**
+ * Wrap up everyone inside before the coarse offline model takes over (it has
+ * no guests): diners who already have their food finish and pay, the rest
+ * leave quietly and give back what they reserved. Tables and plates are
+ * cleaned up as if the evening shift tidied everything.
+ */
+export function settleGuests(state: GameState): void {
+  for (const p of values(state.parties)) {
+    const decor = decorBonus(state, p);
+    for (const id of p.members) {
+      const c = state.customers[id];
+      if (!c) continue;
+      if (c.dish && c.plate?.at === 'table' && p.phase !== 'leaving') {
+        c.satisfaction = satisfaction(waitedFor(p, c), c.plate.quality, decor);
+        const price = servingPrice(state, c.dish);
+        const tip = Math.round(price * (0.05 + 0.35 * c.satisfaction) * 100) / 100;
+        recordSale(state, c.dish, price, tip);
+        rateVisit(state, c.satisfaction);
+      } else if (c.dish && c.counterId && !c.plate) {
+        const counter = state.objects[c.counterId];
+        if (counter?.counter) counter.counter.reserved = Math.max(0, counter.counter.reserved - 1);
+      }
+    }
+  }
+  state.customers = {};
+  state.parties = {};
+  for (const o of values(state.objects)) {
+    if (o.table) {
+      o.table.partyId = null;
+      o.table.dirty = 0;
+    }
+    if (o.pass) o.pass.plates = [];
+    if (o.dishPit) o.dishPit.dirty = 0;
+    if (o.counter) o.counter.reserved = 0;
   }
 }
 
@@ -316,6 +353,7 @@ export function customersDecide(state: GameState, dt: number): void {
         for (const c of members) if (c.plate?.at === 'table') c.eatLeft -= dt;
         if (members.every((c) => c.plate?.at !== 'table' || c.eatLeft <= 0)) {
           pay(state, p);
+          if (p.seatedAt !== null) recordSeating(state, state.time - p.seatedAt);
           startLeaving(state, p);
         }
         break;

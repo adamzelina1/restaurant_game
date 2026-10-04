@@ -2,12 +2,14 @@ import { useState } from 'preact/hooks';
 import type { GameRunner } from '../game/runner';
 import { clearSaves, exportSave, importSave, saveGame } from '../save/save';
 import { newGame } from '../sim/newGame';
+import { notificationsSupported, notificationsWanted, setNotifications } from './notify';
 import { ui } from './store';
 
 export function Menu({ runner }: { runner: GameRunner }) {
   const [mode, setMode] = useState<'main' | 'export' | 'import'>('main');
   const [text, setText] = useState('');
   const [note, setNote] = useState('');
+  const [notify, setNotify] = useState(notificationsWanted);
   if (!ui.state.menuOpen) return null;
   const close = () => {
     ui.set({ menuOpen: false });
@@ -59,8 +61,21 @@ export function Menu({ runner }: { runner: GameRunner }) {
             >
               New game
             </button>
+            {notificationsSupported() && (
+              <label class="check">
+                <input
+                  type="checkbox"
+                  checked={notify}
+                  onChange={(e) => setNotifications((e.target as HTMLInputElement).checked).then(setNotify)}
+                />
+                Notify me when food is ready
+              </label>
+            )}
             {note && <p class="muted">{note}</p>}
-            <p class="hint">The game autosaves every 30 seconds and when you leave the tab.</p>
+            <p class="hint">
+              The game autosaves every 30 seconds and when you leave the tab. While you're away, cooking carries on and the counters keep
+              selling; finished batches wait for you to serve them.
+            </p>
           </div>
         )}
         {mode === 'export' && (

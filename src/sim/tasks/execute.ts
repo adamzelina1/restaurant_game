@@ -1,19 +1,16 @@
 // Task scripts. Each task kind is a short sequence of toils (walk, pick up, work,
 // drop); `emp.toil` is the index of the current one, so a task survives saving.
 
-import { recipe } from '../../data/recipes';
 import { stationDef } from '../../data/stations';
 import { DROP_TIME, LOAD_TIME, LOAD_XP, PICKUP_TIME } from '../constants';
-import { tidyCounter } from '../counters/counters';
 import { runBus, runWash } from '../foh/dishes';
 import { runPlate, runServe, runTakeOrder } from '../foh/service';
 import { workTile } from '../grid/grid';
-import { onCrateLoaded, readyBatchQuality } from '../production/batches';
-import { recordBatchServed, tierSpeed } from '../progression/progression';
+import { onCrateLoaded, putBatchOnCounter, readyBatchQuality } from '../production/batches';
+import { tierSpeed } from '../progression/progression';
 import { empWorkSpeed, qualityLevel } from '../skills';
 import { gainXp } from '../staff/xp';
 import type { Employee, GameState, Task } from '../state';
-import { message } from '../util';
 import { abandonTask, claimTask, createTask, crateTile, deleteTask, potTile } from './tasks';
 import { goTo, timed, type Outcome } from './toils';
 
@@ -148,17 +145,9 @@ function runCarryBatch(state: GameState, emp: Employee, t: Task, dt: number): Ou
     case 3: {
       const r = timed(emp, DROP_TIME, dt);
       if (r !== 'next') return { r };
-      const rec = recipe(b.recipeId);
-      const cs = counter.counter;
-      cs.recipeId = b.recipeId;
-      cs.lots.push({ servings: b.servings, quality: b.quality, placedAt: state.time, freshFor: rec.freshFor });
-      cs.incoming = cs.incoming.filter((id) => id !== t.id);
-      tidyCounter(counter);
+      counter.counter.incoming = counter.counter.incoming.filter((id) => id !== t.id);
       emp.carrying = null;
-      state.stats.batchesServed++;
-      recordBatchServed(state, b.recipeId);
-      delete state.batches[b.id];
-      message(state, `${b.servings} servings of ${rec.name} on the counter`);
+      putBatchOnCounter(state, b, counter);
       return { r: 'done' };
     }
   }

@@ -3,6 +3,7 @@
 //   npm run headless -- balance [hours] [short|long|best]
 //   npm run headless -- stress [trials]
 //   npm run headless -- bench
+//   npm run headless -- offline [hours]
 
 import { RECIPES } from '../src/data/recipes';
 import { moveAgents, setGoal, type AgentRef } from '../src/sim/agents/movement';
@@ -12,6 +13,8 @@ import { emptyState, newGame, paintFloor } from '../src/sim/newGame';
 import { rand } from '../src/sim/rng';
 import { Floor, type Mover } from '../src/sim/state';
 import { step } from '../src/sim/step';
+import { offlineCatchUp } from '../src/sim/offline/offline';
+import { awayReport, awaySnapshot } from '../src/sim/offline/report';
 import { botCommands, type Strategy } from './bot';
 
 function pad(s: string | number, n: number): string {
@@ -113,8 +116,49 @@ function bench(): void {
   console.log(`Bench: 1 sim hour (${ticks} ticks) in ${ms.toFixed(0)} ms → ${Math.round(ticks / (ms / 1000))} ticks/s`);
 }
 
+/**
+ * Validate the coarse offline model (PLAN §9, §12): play online for a while,
+ * leave with long batches started, then compare `offlineCatchUp` with a full
+ * tick simulation of the same absence.
+ */
+function offline(hours: number): void {
+  const s = newGame(1);
+  s.money = 3000;
+  for (let i = 0; i < 2 * 3600 * TICK_RATE; i++) step(s, i % TICK_RATE === 0 ? botCommands(s, 'best') : []);
+  // Before leaving: serve what's ready and start long batches everywhere.
+  for (let i = 0; i < 3; i++) step(s, botCommands(s, 'long'));
+  const ticked = structuredClone(s);
+  const coarse = structuredClone(s);
+  const before = awaySnapshot(s);
+
+  let t0 = performance.now();
+  for (let i = 0; i < hours * 3600 * TICK_RATE; i++) step(ticked);
+  const tickMs = performance.now() - t0;
+  t0 = performance.now();
+  offlineCatchUp(coarse, hours * 3600);
+  const coarseMs = performance.now() - t0;
+
+  const a = awayReport(before, ticked);
+  const b = awayReport(before, coarse);
+  const row = (label: string, x: number | string, y: number | string) => console.log(`  ${pad(label, 22)} ${pad(x, 14)} ${y}`);
+  console.log(`\n=== Offline model vs tick sim: ${hours} h away ===`);
+  row('', 'ticks', 'coarse');
+  row('real time', `${(tickMs / 1000).toFixed(1)} s`, `${coarseMs.toFixed(0)} ms`);
+  row('money change', `$${Math.round(a.money)}`, `$${Math.round(b.money)}`);
+  row('income', `$${Math.round(a.income)}`, `$${Math.round(b.income)}`);
+  row('wages', `$${Math.round(a.wages)}`, `$${Math.round(b.wages)}`);
+  row('guests served', a.guests, b.guests);
+  for (const id of new Set([...a.sold, ...b.sold].map((x) => x.recipeId))) {
+    row(`  ${RECIPES[id].name}`, a.sold.find((x) => x.recipeId === id)?.n ?? 0, b.sold.find((x) => x.recipeId === id)?.n ?? 0);
+  }
+  row('reputation', a.reputation.after.toFixed(2), b.reputation.after.toFixed(2));
+  row('batches ready', a.ready.join(', ') || '-', b.ready.join(', ') || '-');
+  row('level-ups', a.levelUps.length, b.levelUps.length);
+}
+
 const [cmd = 'balance', a, b] = process.argv.slice(2);
 if (cmd === 'balance') balance(Number(a ?? 8), (b as Strategy) ?? 'best');
 else if (cmd === 'stress') stress(Number(a ?? 40));
 else if (cmd === 'bench') bench();
-else console.log('Usage: headless balance [hours] [short|long|best] | stress [trials] | bench');
+else if (cmd === 'offline') for (const h of a ? [Number(a)] : [1, 4, 12]) offline(h);
+else console.log('Usage: headless balance [hours] [short|long|best] | stress [trials] | bench | offline [hours]');

@@ -107,3 +107,28 @@ export const MASTERY_SERVINGS_4 = 0.1;
 /** ★5 signature dish: price and appeal multipliers. */
 export const SIGNATURE_PRICE = 1.1;
 export const SIGNATURE_APPEAL = 1.25;
+
+// Offline progress (PLAN §9)
+/** Longest absence that is caught up. */
+export const OFFLINE_CAP = 24 * 3600;
+/** Absences up to this long are simulated tick by tick (it's cheap and exact). */
+export const OFFLINE_TICK_LIMIT = 600;
+/** The coarse model steps in chunks of this many seconds. */
+export const OFFLINE_CHUNK = 600;
+/** Time constant (s) of the rolling labor-per-guest measurement. */
+export const ROLLING_WINDOW = 3600;
+/** Weight of each new guest / batch in the rolling averages. */
+export const ROLLING_ALPHA = 0.05;
+/** Share of their time front-of-house staff spend serving while you're away. */
+export const OFFLINE_FOH_SHARE = 0.8;
+/** Share of seats filled on average (parties don't fit tables exactly). */
+export const OFFLINE_SEAT_FILL = 0.7;
+export const ROLLING_DEFAULTS = {
+  fohWork: 40 * 20,
+  fohGuests: 20,
+  seatTime: 160,
+  satisfaction: 0.6,
+  quality: 0.6,
+  tipFrac: 0.2,
+  loadPerCrate: 30,
+};

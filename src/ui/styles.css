@@ -606,3 +606,29 @@ ol.mastery-list {
   flex-wrap: wrap;
   margin: 6px 0 10px;
 }
+table.report {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 6px 0;
+}
+table.report td {
+  padding: 3px 0;
+  border-bottom: 1px solid #2a2e36;
+}
+table.report td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.good {
+  color: var(--good);
+}
+.modal.welcome .btn.primary {
+  margin-top: 10px;
+  width: 100%;
+}
+label.check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}

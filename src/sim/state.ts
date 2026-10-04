@@ -329,6 +329,25 @@ export interface Stats {
   trafficByTile: Record<number, number>;
 }
 
+/**
+ * Rolling measurements of how the restaurant does while the player is online,
+ * which the offline model (PLAN §9) replays.
+ */
+export interface Rolling {
+  /** Decayed staff-seconds of front-of-house work and guests served: labor per guest. */
+  fohWork: number;
+  fohGuests: number;
+  /** Seconds a party spends at its table (table turnover). */
+  seatTime: number;
+  /** Moving averages per guest served. */
+  satisfaction: number;
+  quality: number;
+  /** Tip as a fraction of the price. */
+  tipFrac: number;
+  /** Seconds per crate from starting a batch to cooking it (kitchen throughput). */
+  loadPerCrate: number;
+}
+
 export interface GameState {
   version: number;
   /** Ticks simulated since the start of the game. */
@@ -363,4 +382,5 @@ export interface GameState {
   messages: Message[];
   nextMessageId: number;
   stats: Stats;
+  rolling: Rolling;
 }

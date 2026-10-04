@@ -1,8 +1,18 @@
 import { recipe, totalCrates } from '../../data/recipes';
 import { stationDef } from '../../data/stations';
 import { CANCEL_REFUND, CLICK_CAP_FRACTION } from '../constants';
+import { recordLoad } from '../economy/rolling';
 import { computeBatchQuality, decayedQuality, readyGrace } from '../quality';
-import { masteryCookMult, masteryQuality, masteryServings, masteryStars, tierServings, tierSpeed } from '../progression/progression';
+import { tidyCounter } from '../counters/counters';
+import {
+  masteryCookMult,
+  masteryQuality,
+  masteryServings,
+  masteryStars,
+  recordBatchServed,
+  tierServings,
+  tierSpeed,
+} from '../progression/progression';
 import type { Batch, Crate, GameState, Id, PlacedObject } from '../state';
 import { abandonTask, createTask, deleteTask } from '../tasks/tasks';
 import { message, newId, spend, values } from '../util';
@@ -95,6 +105,9 @@ export function startBatch(state: GameState, stationId: Id, recipeId: string): b
 
 export function startCooking(state: GameState, b: Batch): void {
   b.phase = 'cooking';
+  recordLoad(state, b);
+  // The crates are in the pot now.
+  for (const cid of b.crates) delete state.crates[cid];
   if (recipe(b.recipeId).cookMode === 'active') createTask(state, 'tend', 'Cook', { batchId: b.id });
 }
 
@@ -148,14 +161,38 @@ export function tickCooking(state: GameState, dt: number): void {
     if (b.phase !== 'cooking') continue;
     const r = recipe(b.recipeId);
     if (r.cookMode === 'passive') b.cookDone += dt;
-    if (b.cookDone + b.clickRemoved >= b.cookTime) {
-      const st = state.objects[b.stationId];
-      b.phase = 'ready';
-      b.readyAt = state.time;
-      b.quality = Math.min(1, computeBatchQuality(b, st?.tier ?? 1) + masteryQuality(masteryStars(state, b.recipeId)));
-      message(state, `${r.name} is ready! Click the ${stationDef(r.station).name} to serve it.`, 'good');
-    }
+    if (b.cookDone + b.clickRemoved >= b.cookTime) finishCooking(state, b, state.time);
   }
+}
+
+/** Cooking is done at time `at`: the batch waits READY for the player's click. */
+export function finishCooking(state: GameState, b: Batch, at: number): void {
+  const r = recipe(b.recipeId);
+  const st = state.objects[b.stationId];
+  b.phase = 'ready';
+  b.readyAt = at;
+  b.quality = Math.min(1, computeBatchQuality(b, st?.tier ?? 1) + masteryQuality(masteryStars(state, b.recipeId)));
+  message(state, `${r.name} is ready! Click the ${stationDef(r.station).name} to serve it.`, 'good');
+}
+
+/** The pot reaches a counter and becomes servings. */
+export function putBatchOnCounter(state: GameState, b: Batch, counter: PlacedObject): void {
+  const rec = recipe(b.recipeId);
+  const cs = counter.counter!;
+  if (b.readyAt !== null) {
+    // Lock in the quality lost while waiting to be served.
+    b.quality = readyBatchQuality(state, b);
+    b.readyAt = null;
+  }
+  const st = state.objects[b.stationId];
+  if (st?.cook?.batchId === b.id) st.cook.batchId = null;
+  cs.recipeId = b.recipeId;
+  cs.lots.push({ servings: b.servings, quality: b.quality, placedAt: state.time, freshFor: rec.freshFor });
+  tidyCounter(counter);
+  state.stats.batchesServed++;
+  recordBatchServed(state, b.recipeId);
+  delete state.batches[b.id];
+  message(state, `${b.servings} servings of ${rec.name} on the counter`);
 }
 
 /** Quality of a ready batch right now, including the wait since it finished. */

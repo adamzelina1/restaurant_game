@@ -7,6 +7,7 @@ import { Menu } from './Menu';
 import { Messages } from './Messages';
 import { RecipePicker } from './RecipePicker';
 import { RecipeBook } from './RecipeBook';
+import { WelcomeBack } from './WelcomeBack';
 import { SelectionPanel } from './SelectionPanel';
 import { StaffPanel } from './StaffPanel';
 import { BuildPanel } from './BuildPanel';
@@ -32,7 +33,7 @@ export function App({ runner }: { runner: GameRunner }) {
       } else if (e.code === 'Escape' && build.active) {
         cancelBuildTool();
       } else if (e.code === 'Escape') {
-        if (ui.state.picker || ui.state.menuOpen || ui.state.modal) ui.set({ picker: null, menuOpen: false, modal: null });
+        if (ui.state.picker || ui.state.menuOpen || ui.state.modal || ui.state.away) ui.set({ picker: null, menuOpen: false, modal: null, away: null });
         else ui.set({ selected: null });
       }
     };
@@ -51,6 +52,7 @@ export function App({ runner }: { runner: GameRunner }) {
       <StaffPanel runner={runner} />
       <HiringPanel runner={runner} />
       <Menu runner={runner} />
+      <WelcomeBack runner={runner} />
       {runner.paused && !ui.state.build.active && <div class="paused-banner">PAUSED</div>}
     </>
   );

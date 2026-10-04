@@ -1,5 +1,5 @@
 import { placeNear } from '../sim/build/build';
-import { START_PLATES } from '../sim/constants';
+import { ROLLING_DEFAULTS, START_PLATES } from '../sim/constants';
 import { STATE_VERSION } from '../sim/newGame';
 
 /**
@@ -72,6 +72,16 @@ export const MIGRATIONS: Record<number, Migration> = {
   // v6: recipe mastery (existing saves keep every recipe they had unlocked).
   5: (s) => {
     s.mastery ??= {};
+    return s;
+  },
+  // v7: rolling online stats for the offline model; drop the crates of
+  // batches that already cooked (they used to be kept forever).
+  6: (s) => {
+    s.rolling ??= { ...ROLLING_DEFAULTS };
+    for (const [id, c] of Object.entries<any>(s.crates)) {
+      const b = s.batches[c.batchId];
+      if (!b || b.phase !== 'loading') delete s.crates[id];
+    }
     return s;
   },
 };

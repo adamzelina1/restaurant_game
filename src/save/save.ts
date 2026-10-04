@@ -62,7 +62,14 @@ export function loadGame(): SaveFile | null {
       const f = deserialize(raw);
       if (!best || f.savedAt > best.savedAt) best = f;
     } catch {
-      // Corrupted slot: fall back to the other one.
+      // Corrupted (or from a newer version): fall back to the other slot, but
+      // keep a copy so autosave never destroys the only one.
+      try {
+        const raw = ls.getItem(key);
+        if (raw && !ls.getItem(`${key}.broken`)) ls.setItem(`${key}.broken`, raw);
+      } catch {
+        // Out of space: nothing more we can do.
+      }
     }
   }
   return best;

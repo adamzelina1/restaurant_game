@@ -1,6 +1,6 @@
 import { STARTER, type Placement, type StarterStaff } from '../data/starter';
 import { stationDef } from '../data/stations';
-import { START_PLATES } from './constants';
+import { ROLLING_DEFAULTS, START_PLATES } from './constants';
 import { starterRecipes } from './progression/progression';
 import { createRng } from './rng';
 import { addEmployee, refreshCandidates } from './staff/hiring';
@@ -17,7 +17,7 @@ import {
 } from './state';
 import { newId } from './util';
 
-export const STATE_VERSION = 6;
+export const STATE_VERSION = 7;
 
 const FLOOR_OF = { floor: Floor.Open, wall: Floor.Wall } as const;
 
@@ -61,6 +61,7 @@ export function emptyState(width: number, height: number, seed: number): GameSta
       blockedByTile: {},
       trafficByTile: {},
     },
+    rolling: { ...ROLLING_DEFAULTS },
   };
 }
 

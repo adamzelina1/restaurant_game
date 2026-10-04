@@ -1,6 +1,7 @@
 import type { FloorTool } from '../sim/build/build';
 import type { LayoutProblem } from '../sim/build/analysis';
 import type { Id, Rot } from '../sim/state';
+import type { AwayReport } from '../sim/offline/report';
 
 export type Selection = { kind: 'object'; id: Id } | { kind: 'employee'; id: Id } | { kind: 'customer'; id: Id } | null;
 
@@ -35,6 +36,8 @@ export interface UiState {
   modal: Modal;
   build: BuildState;
   overlay: Overlay;
+  /** Welcome-back report to show, if any. */
+  away: AwayReport | null;
 }
 
 export const INITIAL_BUILD: BuildState = {
@@ -52,7 +55,15 @@ export const INITIAL_BUILD: BuildState = {
 
 /** Tiny observable store for view-only UI state (never game state). */
 class UiStore {
-  state: UiState = { selected: null, picker: null, menuOpen: false, modal: null, build: INITIAL_BUILD, overlay: 'none' };
+  state: UiState = {
+    selected: null,
+    picker: null,
+    menuOpen: false,
+    modal: null,
+    build: INITIAL_BUILD,
+    overlay: 'none',
+    away: null,
+  };
   private listeners = new Set<() => void>();
 
   set(patch: Partial<UiState>): void {
