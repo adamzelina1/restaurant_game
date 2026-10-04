@@ -42,7 +42,7 @@ export const INITIAL_BUILD: BuildState = {
   tool: 'select',
   placeType: null,
   rot: 0,
-  floorTool: 'kitchen',
+  floorTool: 'floor',
   moving: null,
   routeStation: null,
   routeRecipe: null,

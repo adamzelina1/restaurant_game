@@ -17,10 +17,8 @@ import { ui } from '../ui/store';
 export const TILE = 32;
 
 const FLOOR_COLORS: Record<number, [number, number]> = {
-  [Floor.Kitchen]: [0x3b4049, 0x373c44],
-  [Floor.Dining]: [0x6b5139, 0x654c35],
+  [Floor.Open]: [0x6b5139, 0x654c35],
   [Floor.Wall]: [0x1f2228, 0x1f2228],
-  [Floor.Staff]: [0x3b4a5e, 0x374558],
 };
 
 const TEXT_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
@@ -506,17 +504,6 @@ export class WorldScene extends Phaser.Scene {
         if (b) this.drawPot(g, x + 9, y - 6, b.recipeId);
       } else if (e.carrying?.kind === 'plate') {
         this.drawPlate(g, x + 9, y - 6, s.customers[e.carrying.id]?.dish ?? null);
-      }
-      // Stamina bar when tired; "z" while resting.
-      if (e.stamina.current < 60) {
-        const f = e.stamina.current / e.stamina.max;
-        g.fillStyle(0x000000, 0.7);
-        g.fillRect(x - 9, y + 12, 18, 3);
-        g.fillStyle(f < 0.3 ? 0xe06666 : 0xf6b26b, 1);
-        g.fillRect(x - 9, y + 12, 18 * f, 3);
-      }
-      if (e.onBreak && e.activity === 'break' && !e.step && !e.goal) {
-        this.label(`zz:${e.id}`, x + 10, y - 10 - Math.sin(this.time.now / 300) * 2, 'z', { fontSize: '11px', color: '#b4a7d6', fontStyle: 'bold' });
       }
       this.label(`emp:${e.id}`, x, y - 18, e.name, { fontSize: '9px', backgroundColor: '#00000088', padding: { x: 2, y: 0 } }).setDepth(8);
     }

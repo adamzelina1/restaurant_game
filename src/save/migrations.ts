@@ -7,7 +7,7 @@ import { STATE_VERSION } from '../sim/newGame';
 type Migration = (state: any) => any;
 
 export const MIGRATIONS: Record<number, Migration> = {
-  // v2: staff management (stamina breaks, hiring board, wages, reputation).
+  // v2: staff management (hiring board, wages, reputation).
   1: (s) => {
     s.reputation ??= 1;
     s.hiring ??= { candidates: [], refreshAt: 0 };
@@ -31,6 +31,22 @@ export const MIGRATIONS: Record<number, Migration> = {
       t.partyId ??= null;
       t.customerId ??= null;
     }
+    return s;
+  },
+  // v4: one shared room (no floor zones), no stamina or staff room.
+  3: (s) => {
+    s.grid.floor = s.grid.floor.map((f: number) => (f === 2 || f === 4 ? 1 : f));
+    for (const e of Object.values<any>(s.employees)) {
+      delete e.stamina;
+      delete e.onBreak;
+      delete e.time.break;
+      e.traits = e.traits.filter((t: string) => t !== 'ironLungs');
+    }
+    for (const c of s.hiring.candidates) c.traits = c.traits.filter((t: string) => t !== 'ironLungs');
+    for (const [id, o] of Object.entries<any>(s.objects)) {
+      if (o.type === 'couch' || o.type === 'coffeeMachine') delete s.objects[id];
+    }
+    s.layoutVersion++;
     return s;
   },
 };

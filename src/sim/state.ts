@@ -20,12 +20,11 @@ export interface RngState {
   s: number;
 }
 
+/** One open room: every floor tile serves kitchen and dining alike. */
 export const Floor = {
   Void: 0,
-  Kitchen: 1,
-  Dining: 2,
+  Open: 1,
   Wall: 3,
-  Staff: 4,
 } as const;
 export type Floor = (typeof Floor)[keyof typeof Floor];
 
@@ -211,7 +210,7 @@ export interface SkillState {
 /** A plate's id is the guest it is for. */
 export type Carry = { kind: 'crate'; id: Id } | { kind: 'pot'; id: Id } | { kind: 'plate'; id: Id };
 
-export type Activity = 'idle' | 'walking' | 'working' | 'blocked' | 'break';
+export type Activity = 'idle' | 'walking' | 'working' | 'blocked';
 
 export interface Employee extends Mover {
   id: Id;
@@ -220,7 +219,6 @@ export interface Employee extends Mover {
   color: number;
   skills: Record<Skill, SkillState>;
   walkSpeed: number;
-  stamina: { current: number; max: number; drainRate: number; recoverRate: number };
   traits: string[];
   priorities: Record<WorkType, Priority>;
   wage: number;
@@ -232,10 +230,8 @@ export interface Employee extends Mover {
   toilTime: number;
   carrying: Carry | null;
   activity: Activity;
-  /** Skill used by the work done this tick (for XP and passion stamina relief). */
+  /** Skill used by the work done this tick (for XP). */
   workingSkill: Skill | null;
-  /** Rest seat claimed while on break. */
-  onBreak: { objectId: Id; seat: number } | null;
   /** Lifetime seconds per activity, for the time breakdown. */
   time: Record<Activity, number>;
 }

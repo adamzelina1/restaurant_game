@@ -4,7 +4,7 @@ import { recipe } from '../../data/recipes';
 import { stationDef } from '../../data/stations';
 import { BASE_WALK_SPEED, CARRY_CRATE_SPEED } from '../constants';
 import { distanceField } from '../grid/distance';
-import { DIRS, canStepStatic, layout, objectsOfKind, objectsOfType, seatTiles, workTile, workTiles, type Layout, type Mask, type Tile } from '../grid/grid';
+import { DIRS, canStepStatic, layout, objectsOfKind, objectsOfType, seatTiles, workTile, workTiles, type Layout, type Tile } from '../grid/grid';
 import type { GameState, Id, PlacedObject } from '../state';
 import { values } from '../util';
 
@@ -14,18 +14,18 @@ export interface LayoutProblem {
   message: string;
 }
 
-function neighbours(l: Layout, i: number, mask: Mask = 'staff'): number[] {
+function neighbours(l: Layout, i: number): number[] {
   const x = i % l.width;
   const y = (i - x) / l.width;
   const out: number[] = [];
-  for (const [dx, dy] of DIRS) if (canStepStatic(l, x, y, dx, dy, mask)) out.push((y + dy) * l.width + x + dx);
+  for (const [dx, dy] of DIRS) if (canStepStatic(l, x, y, dx, dy)) out.push((y + dy) * l.width + x + dx);
   return out;
 }
 
 /** Connected component id per tile (-1 for non-walkable). */
-function components(l: Layout, mask: Mask = 'staff'): Int32Array {
+function components(l: Layout): Int32Array {
   const comp = new Int32Array(l.width * l.height).fill(-1);
-  const walk = mask === 'guest' ? l.guestWalkable : l.walkable;
+  const walk = l.walkable;
   let next = 0;
   for (let i = 0; i < comp.length; i++) {
     if (!walk[i] || comp[i] !== -1) continue;
@@ -33,7 +33,7 @@ function components(l: Layout, mask: Mask = 'staff'): Int32Array {
     comp[i] = next;
     while (stack.length) {
       const c = stack.pop()!;
-      for (const n of neighbours(l, c, mask)) {
+      for (const n of neighbours(l, c)) {
         if (comp[n] === -1) {
           comp[n] = next;
           stack.push(n);
@@ -86,10 +86,10 @@ export function validateLayout(state: GameState): LayoutProblem[] {
     }
   }
 
-  // Guests must be able to walk (on dining floor) from the entrance to every chair and the host stand.
+  // Guests must be able to walk from the entrance to every chair and the host stand.
   const door = objectsOfKind(state, 'entrance')[0];
   if (door) {
-    const gcomp = components(l, 'guest');
+    const gcomp = comp;
     const dt = workTile(door);
     const home = gcomp[dt.y * l.width + dt.x];
     const guestSpots: { tile: Tile; objectId: Id; what: string }[] = [];

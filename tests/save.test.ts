@@ -21,7 +21,6 @@ describe('saves', () => {
     delete s.stats.wagesPaid;
     for (const e of Object.values<any>(s.employees)) {
       delete e.workingSkill;
-      delete e.onBreak;
     }
     const f = deserialize(JSON.stringify({ version: 1, savedAt: 0, state: s }));
     expect(f.state.version).toBe(STATE_VERSION);

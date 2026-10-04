@@ -3,7 +3,6 @@ import { distance } from '../grid/distance';
 import { objectsOfKind, workTile } from '../grid/grid';
 import { rand } from '../rng';
 import { empWalkSpeed } from '../skills';
-import { isResting, needsBreak, runBreak, startBreak, tickStamina } from '../staff/stamina';
 import { traitDropChance } from '../staff/traits';
 import type { Employee, GameState, Id } from '../state';
 import { runTask } from '../tasks/execute';
@@ -57,9 +56,6 @@ export function employeesDecide(state: GameState, dt: number): void {
     emp.activity = 'idle';
     emp.workingSkill = null;
     if (emp.taskId && !state.tasks[emp.taskId]) emp.taskId = null;
-    // Tired staff finish their task first, then go rest (PLAN §5.3).
-    if (!emp.taskId && !emp.onBreak && needsBreak(emp)) startBreak(state, emp);
-    if (emp.onBreak && runBreak(state, emp)) continue;
     if (!emp.taskId) pickTask(state, emp);
     if (emp.taskId) runTask(state, emp, dt);
     if (!emp.taskId) idle.push(emp);
@@ -72,16 +68,14 @@ export function employeeAgents(state: GameState): AgentRef[] {
   let i = 0;
   for (const emp of values(state.employees)) {
     const t = emp.taskId ? state.tasks[emp.taskId] : null;
-    const tier = t ? (t.urgent ? 0 : 1) : emp.onBreak ? 2 : 3;
-    const resting = !!emp.onBreak && isResting(state, emp);
+    const tier = t ? (t.urgent ? 0 : 1) : 2;
     out.push({
       id: emp.id,
       m: emp,
       speed: empWalkSpeed(emp),
       order: tier * 10000 + i++,
-      canYield: !t && !emp.onBreak,
-      canSwap: emp.activity !== 'working' && !resting,
-      mask: 'staff',
+      canYield: !t,
+      canSwap: emp.activity !== 'working',
     });
   }
   return out;
@@ -100,12 +94,11 @@ function rollDrops(state: GameState, emp: Employee, dt: number): void {
   message(state, `${emp.name} dropped ${what}!`, 'warn');
 }
 
-/** Stamina, time breakdown and accidents, after movement. */
+/** Time breakdown and accidents, after movement. */
 export function employeesAfterMove(state: GameState, dt: number): void {
   for (const emp of values(state.employees)) {
     if (emp.activity === 'walking' && !emp.step && emp.blocked > 0) emp.activity = 'blocked';
     emp.time[emp.activity] += dt;
-    tickStamina(state, emp, dt);
     rollDrops(state, emp, dt);
   }
 }

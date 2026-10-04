@@ -1,11 +1,6 @@
-/** Floor zones the player can paint. */
-export type FloorZone = 'kitchen' | 'dining' | 'staff';
-
 export const FLOOR_COSTS = {
   /** Buy new floor (void or wall → floor), per tile. */
   buy: 20,
-  /** Re-zone existing floor (kitchen ↔ dining ↔ staff), per tile. */
-  rezone: 2,
   /** Build a wall on a floor tile. */
   wall: 10,
 };
@@ -22,5 +17,5 @@ export const PALETTE: PaletteGroup[] = [
   { name: 'Kitchen', items: ['fridge', 'cuttingBoard', 'mixingBench', 'stove', 'grill', 'fryer', 'oven', 'stockPot'] },
   { name: 'Service', items: ['counter', 'pass'] },
   { name: 'Dining', items: ['table2', 'table4', 'hostStand', 'plant', 'entrance'] },
-  { name: 'Staff', items: ['idleSpot', 'couch', 'coffeeMachine'] },
+  { name: 'Staff', items: ['idleSpot'] },
 ];

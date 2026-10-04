@@ -10,7 +10,7 @@ function mover(x: number, y: number): Mover {
 }
 
 function agent(id: string, m: Mover, order: number, opts: Partial<AgentRef> = {}): AgentRef {
-  return { id, m, speed: 2.5, order, canYield: false, canSwap: true, mask: 'staff', ...opts };
+  return { id, m, speed: 2.5, order, canYield: false, canSwap: true, ...opts };
 }
 
 function run(s: GameState, agents: AgentRef[], seconds: number, onTick?: () => void): void {
@@ -25,7 +25,7 @@ const arrived = (m: Mover) => !!m.goal && !m.step && m.x === m.goal.x && m.y ===
 describe('hard blocking', () => {
   it('never puts two agents on one tile', () => {
     const s = emptyState(12, 6, 3);
-    paintFloor(s, Floor.Kitchen, 0, 0, 12, 6);
+    paintFloor(s, Floor.Open, 0, 0, 12, 6);
     const agents: AgentRef[] = [];
     for (let i = 0; i < 8; i++) {
       const m = mover(i, 0);
@@ -45,7 +45,7 @@ describe('hard blocking', () => {
 
   it('resolves a head-on meeting in a 1-tile corridor by squeezing past', () => {
     const s = emptyState(10, 1, 1);
-    paintFloor(s, Floor.Kitchen, 0, 0, 10, 1);
+    paintFloor(s, Floor.Open, 0, 0, 10, 1);
     const a = mover(0, 0);
     const b = mover(9, 0);
     setGoal(a, 9, 0);
@@ -59,7 +59,7 @@ describe('hard blocking', () => {
 
   it('re-paths around a blocker when there is room', () => {
     const s = emptyState(10, 3, 1);
-    paintFloor(s, Floor.Kitchen, 0, 0, 10, 3);
+    paintFloor(s, Floor.Open, 0, 0, 10, 3);
     const a = mover(0, 1);
     const wall = mover(5, 1); // stands still (working), can't be squeezed
     setGoal(a, 9, 1);
@@ -70,7 +70,7 @@ describe('hard blocking', () => {
 
   it('idle agents step aside', () => {
     const s = emptyState(10, 2, 1);
-    paintFloor(s, Floor.Kitchen, 0, 0, 10, 2);
+    paintFloor(s, Floor.Open, 0, 0, 10, 2);
     const a = mover(0, 0);
     const idle = mover(5, 0);
     setGoal(a, 9, 0);
@@ -81,12 +81,12 @@ describe('hard blocking', () => {
   it('stress: random crowds in a cramped room never deadlock', () => {
     for (let trial = 0; trial < 5; trial++) {
       const s = emptyState(9, 5, 100 + trial);
-      paintFloor(s, Floor.Kitchen, 0, 0, 9, 5);
+      paintFloor(s, Floor.Open, 0, 0, 9, 5);
       // Pillars make corridors.
       for (const [x, y] of [[2, 1], [2, 3], [4, 2], [6, 1], [6, 3]]) s.grid.floor[y * 9 + x] = Floor.Wall;
       s.layoutVersion++;
       const free: [number, number][] = [];
-      for (let y = 0; y < 5; y++) for (let x = 0; x < 9; x++) if (s.grid.floor[y * 9 + x] === Floor.Kitchen) free.push([x, y]);
+      for (let y = 0; y < 5; y++) for (let x = 0; x < 9; x++) if (s.grid.floor[y * 9 + x] === Floor.Open) free.push([x, y]);
       const shuffle = (arr: [number, number][]) => {
         const out = [...arr];
         for (let i = out.length - 1; i > 0; i--) {

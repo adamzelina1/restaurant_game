@@ -4,7 +4,9 @@ Browser restaurant-management idle game (ChefVille meets RimWorld).
 
 **The design source of truth is [PLAN.md](PLAN.md).** Read it before implementing anything.
 Its §1 table lists every decision made so far; don't revisit those without asking.
-Build in milestone order (PLAN.md §12), starting at M0.
+The game is one shared room (kitchen + seating) with no stamina or staff room.
+Build in milestone order (PLAN.md §12). M0–M5 are done; start with PLAN.md §0
+(implementation status, remaining work, deviations, gotchas) and continue at M6.
 
 ## Key architecture rules
 

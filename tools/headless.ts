@@ -38,7 +38,7 @@ function balance(hours: number, strategy: Strategy): void {
   for (const e of Object.values(s.employees)) {
     const total = Object.values(e.time).reduce((a, b) => a + b, 0);
     const p = (k: keyof typeof e.time) => `${pad(k, 7)} ${pad(((100 * e.time[k]) / total).toFixed(1) + '%', 7)}`;
-    console.log(`  ${pad(e.name, 8)} ${p('working')} ${p('walking')} ${p('blocked')} ${p('idle')} ${p('break')}`);
+    console.log(`  ${pad(e.name, 8)} ${p('working')} ${p('walking')} ${p('blocked')} ${p('idle')}`);
   }
   const hot = Object.entries(s.stats.blockedByTile)
     .sort((a, b) => b[1] - a[1])
@@ -58,7 +58,7 @@ function stress(trials: number): void {
     const w = 8 + (trial % 6);
     const h = 5 + (trial % 4);
     const s = emptyState(w, h, 1000 + trial);
-    paintFloor(s, Floor.Kitchen, 0, 0, w, h);
+    paintFloor(s, Floor.Open, 0, 0, w, h);
     for (let i = 0; i < (w * h) / 6; i++) {
       const x = Math.floor(rand(s) * w);
       const y = Math.floor(rand(s) * h);
@@ -66,13 +66,13 @@ function stress(trials: number): void {
     }
     s.layoutVersion++;
     const free: [number, number][] = [];
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (s.grid.floor[y * w + x] === Floor.Kitchen) free.push([x, y]);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (s.grid.floor[y * w + x] === Floor.Open) free.push([x, y]);
     const shuffled = () => [...free].sort(() => rand(s) - 0.5);
     const n = Math.min(10, Math.floor(free.length / 3));
     const starts = shuffled().slice(0, n);
     const agents: AgentRef[] = starts.map(([x, y], i) => {
       const m: Mover = { x, y, step: null, goal: null, blocked: 0, detour: [] };
-      return { id: `a${i}`, m, speed: 2.5, order: i, canYield: false, canSwap: true, mask: 'staff' as const };
+      return { id: `a${i}`, m, speed: 2.5, order: i, canYield: false, canSwap: true };
     });
     let maxBlocked = 0;
     // Keep handing out new random goals for two simulated minutes.

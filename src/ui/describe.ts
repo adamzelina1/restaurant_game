@@ -55,7 +55,6 @@ export function describeCustomer(s: GameState, c: Customer): string {
 }
 
 export function describeEmployee(s: GameState, e: Employee): string {
-  if (e.onBreak) return 'On break ☕';
   const t = e.taskId ? s.tasks[e.taskId] : null;
   if (t) return describeTask(s, t) + (e.activity === 'blocked' ? ' (blocked!)' : '');
   return 'Idle';

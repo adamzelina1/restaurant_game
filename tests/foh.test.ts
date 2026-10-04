@@ -48,7 +48,7 @@ describe('service loop', () => {
       step(s);
       if (i % 10) continue;
       for (const c of Object.values(s.customers)) {
-        expect(s.grid.floor[c.y * s.grid.width + c.x]).toBe(Floor.Dining);
+        expect(s.grid.floor[c.y * s.grid.width + c.x]).toBe(Floor.Open);
       }
       const pass = objOfType(s, 'pass');
       expect(pass.pass!.plates.length + pass.pass!.incoming.length).toBeLessThanOrEqual(PASS_CAPACITY);

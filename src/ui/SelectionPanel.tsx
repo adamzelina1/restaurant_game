@@ -14,7 +14,6 @@ import { speedUpTarget } from '../sim/stations/stations';
 import { describeCrate, describeCustomer, describeEmployee } from './describe';
 import { formatDuration, formatMoney, hex, pct } from './format';
 import { TRAITS } from '../data/traits';
-import { BREAK_AT } from '../sim/constants';
 import { xpToNext } from '../sim/staff/xp';
 import { ui } from './store';
 
@@ -259,7 +258,6 @@ const ACTIVITY_COLORS: Record<Activity, string> = {
   walking: '#6fa8dc',
   blocked: '#e06666',
   idle: '#999999',
-  break: '#c27ba0',
 };
 
 function EmployeeView({ s, e, close }: { s: GameState; e: Employee; close: () => void }) {
@@ -286,9 +284,6 @@ function EmployeeView({ s, e, close }: { s: GameState; e: Employee; close: () =>
           </span>
         ))}
       </div>
-      <h4>Stamina</h4>
-      <Bar value={e.stamina.current / e.stamina.max} color={e.stamina.current < BREAK_AT ? '#e06666' : '#93c47d'} />
-      {e.stamina.current < BREAK_AT && !e.onBreak && <p class="warn small">Exhausted, and no free couch in the staff room!</p>}
       <h4>Skills</h4>
       <table class="skills">
         {SKILLS.map((k) => (

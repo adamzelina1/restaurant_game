@@ -16,9 +16,9 @@ import {
 } from './state';
 import { newId } from './util';
 
-export const STATE_VERSION = 3;
+export const STATE_VERSION = 4;
 
-const FLOOR_OF = { kitchen: Floor.Kitchen, dining: Floor.Dining, wall: Floor.Wall, staff: Floor.Staff } as const;
+const FLOOR_OF = { floor: Floor.Open, wall: Floor.Wall } as const;
 
 export function emptyState(width: number, height: number, seed: number): GameState {
   return {

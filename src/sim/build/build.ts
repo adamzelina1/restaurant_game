@@ -1,13 +1,11 @@
 // Build mode commands (PLAN §8): place, move/rotate, sell objects and paint floor.
 
-import { FLOOR_COSTS, SELL_REFUND, type FloorZone } from '../../data/build';
+import { FLOOR_COSTS, SELL_REFUND } from '../../data/build';
 import { stationDef } from '../../data/stations';
 import { footprint, inBounds, isFloor, seatTiles, workTiles, type Tile } from '../grid/grid';
 import { placeObject } from '../newGame';
 import { Floor, type GameState, type Id, type PlacedObject, type Rot } from '../state';
 import { message, spend, values } from '../util';
-
-const ZONE_FLOOR: Record<FloorZone, Floor> = { kitchen: Floor.Kitchen, dining: Floor.Dining, staff: Floor.Staff };
 
 function agentTiles(state: GameState): Set<string> {
   const s = new Set<string>();
@@ -50,16 +48,12 @@ export function placementError(
   const agents = agentTiles(state);
   for (const t of fp) {
     if (!inBounds(state, t.x, t.y) || !isFloor(floorAt(t))) return 'Must be on floor';
-    if (def.dining && floorAt(t) !== Floor.Dining) return 'Must be on dining floor';
     if (foot.has(`${t.x},${t.y}`)) return 'Overlaps another object';
     if (!def.walkable && work.has(`${t.x},${t.y}`)) return "Blocks another object's work tile";
     if (!def.walkable && agents.has(`${t.x},${t.y}`)) return 'Someone is standing there';
   }
   if (!def.walkable) {
     const fpSet = new Set(fp.map((t) => `${t.x},${t.y}`));
-    for (const t of seatTiles(probe)) {
-      if (!inBounds(state, t.x, t.y) || floorAt(t) !== Floor.Dining) return 'Chairs must be on dining floor';
-    }
     for (const t of wts) {
       if (!inBounds(state, t.x, t.y) || !isFloor(floorAt(t))) return 'Work tile must be on floor';
       if (foot.has(`${t.x},${t.y}`) || fpSet.has(`${t.x},${t.y}`)) return 'Work tile is blocked';
@@ -69,13 +63,12 @@ export function placementError(
 }
 
 /** Busy objects can't be moved or sold (PLAN §8). */
-export function busyReason(state: GameState, o: PlacedObject): string | null {
+export function busyReason(_state: GameState, o: PlacedObject): string | null {
   if (o.table?.partyId) return 'Guests are using it';
   if (o.pass && (o.pass.plates.length > 0 || o.pass.incoming.length > 0)) return 'Plates are on it';
   if (o.cook?.batchId) return 'It has a batch in progress';
   if (o.prep && (o.prep.crateId || o.prep.reservedBy)) return 'A crate is on it';
   if (o.counter && (o.counter.incoming.length > 0 || o.counter.lots.length > 0)) return 'It still holds food';
-  if (values(state.employees).some((e) => e.onBreak?.objectId === o.id)) return 'Someone is resting on it';
   return null;
 }
 
@@ -129,16 +122,15 @@ export function sellObject(state: GameState, id: Id): boolean {
   return true;
 }
 
-export type FloorTool = FloorZone | 'wall';
+/** Floor: buy floor on empty lot or knock down a wall. Wall: build a wall. */
+export type FloorTool = 'floor' | 'wall';
 
 /** Cost to apply a floor tool to one tile, or null if not allowed there. */
 export function floorTileCost(state: GameState, t: Tile, tool: FloorTool): number | null {
   if (!inBounds(state, t.x, t.y)) return null;
   const cur = state.grid.floor[t.y * state.grid.width + t.x];
   if (tool === 'wall') return isFloor(cur) ? FLOOR_COSTS.wall : null;
-  const target = ZONE_FLOOR[tool];
-  if (cur === target) return null;
-  return isFloor(cur) ? FLOOR_COSTS.rezone : FLOOR_COSTS.buy;
+  return isFloor(cur) ? null : FLOOR_COSTS.buy;
 }
 
 /** Paint floor on a set of tiles; skips tiles where the tool doesn't apply. */
@@ -159,7 +151,7 @@ export function paintTiles(state: GameState, tiles: Tile[], tool: FloorTool): bo
     message(state, `That costs $${total}`, 'warn');
     return false;
   }
-  const f = tool === 'wall' ? Floor.Wall : ZONE_FLOOR[tool];
+  const f = tool === 'wall' ? Floor.Wall : Floor.Open;
   for (const { t } of apply) state.grid.floor[t.y * state.grid.width + t.x] = f;
   state.layoutVersion++;
   return true;

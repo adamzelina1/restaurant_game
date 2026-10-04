@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { TRAITS } from '../src/data/traits';
-import { BREAK_AT } from '../src/sim/constants';
 import { newGame } from '../src/sim/newGame';
 import { generateCandidate } from '../src/sim/staff/hiring';
 import { gainXp, xpToNext } from '../src/sim/staff/xp';
@@ -79,37 +78,6 @@ describe('priorities', () => {
   });
 });
 
-describe('stamina and breaks', () => {
-  it('tired staff finish their task, rest on the couch, and come back', () => {
-    const s = newGame();
-    s.money = 1e6;
-    const ana = byName(s, 'Ana');
-    ana.stamina.current = BREAK_AT + 0.5;
-    const pot = objOfType(s, 'stockPot');
-    step(s, [{ type: 'startBatch', stationId: pot.id, recipeId: 'beefStew' }]);
-    runUntil(s, () => !!ana.onBreak, 600);
-    expect(ana.taskId).toBeNull();
-    const couch = objOfType(s, 'couch');
-    runUntil(s, () => ana.activity === 'break' && ana.y === couch.y - 1, 120);
-    runUntil(s, () => !ana.onBreak, 1200);
-    expect(ana.stamina.current).toBeGreaterThan(99);
-    expect(ana.time.break).toBeGreaterThan(60);
-  });
-
-  it('with no couch, exhausted staff keep working, slower', () => {
-    const s = newGame();
-    s.money = 1e6;
-    delete s.objects[objOfType(s, 'couch').id];
-    s.layoutVersion++;
-    const ana = byName(s, 'Ana');
-    ana.stamina.current = 5;
-    const pot = objOfType(s, 'stockPot');
-    step(s, [{ type: 'startBatch', stationId: pot.id, recipeId: 'beefStew' }]);
-    runFor(s, 120);
-    expect(ana.onBreak).toBeNull();
-    expect(ana.time.working).toBeGreaterThan(10);
-  });
-});
 
 describe('hiring and wages', () => {
   it('candidates are deterministic per seed', () => {

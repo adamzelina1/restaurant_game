@@ -9,9 +9,7 @@ import { formatDuration, formatMoney, hex } from './format';
 import { ui } from './store';
 
 const FLOOR_TOOLS: { id: FloorTool; label: string; color: string }[] = [
-  { id: 'kitchen', label: 'Kitchen', color: '#3b4049' },
-  { id: 'dining', label: 'Dining', color: '#6b5139' },
-  { id: 'staff', label: 'Staff room', color: '#3b4a5e' },
+  { id: 'floor', label: 'Floor', color: '#6b5139' },
   { id: 'wall', label: 'Wall', color: '#1f2228' },
 ];
 
@@ -60,8 +58,8 @@ export function BuildPanel({ runner }: { runner: GameRunner }) {
         ))}
       </div>
       <p class="muted small">
-        Drag a rectangle. New floor {formatMoney(FLOOR_COSTS.buy)}/tile, re-zoning {formatMoney(FLOOR_COSTS.rezone)}, walls{' '}
-        {formatMoney(FLOOR_COSTS.wall)}.
+        Drag a rectangle. Floor {formatMoney(FLOOR_COSTS.buy)}/tile (also knocks down walls), walls{' '}
+        {formatMoney(FLOOR_COSTS.wall)}. Kitchen and tables share the same room.
       </p>
 
       {PALETTE.map((group) => (

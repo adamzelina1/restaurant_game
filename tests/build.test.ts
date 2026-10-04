@@ -16,7 +16,7 @@ describe('placement', () => {
     expect(placementError(s, 'stove', 4, 2, 0)).toBe("Blocks another object's work tile");
     // Work tile facing the wall.
     expect(placementError(s, 'stove', 6, 5, 2)).toBeNull();
-    expect(placementError(s, 'stove', 6, 1, 2)).toBe('Work tile must be on floor');
+    expect(placementError(s, 'stove', 7, 1, 2)).toBe('Work tile must be on floor');
     expect(placementError(s, 'stove', 2, 1, 2)).toBe('Work tile must be on floor');
     const marco = Object.values(s.employees)[0];
     marco.x = 6;
@@ -46,7 +46,7 @@ describe('placement', () => {
     step(s, [{ type: 'sellObject', id: stove.id }]);
     expect(s.objects[stove.id]).toBeDefined();
     step(s, [{ type: 'moveObject', id: stove.id, x: 6, y: 6, rot: 0 }]);
-    expect(stove.x).toBe(9);
+    expect(stove.x).toBe(8);
   });
 
   it('staff follow a moved fridge and survive a sold one', () => {
@@ -54,7 +54,8 @@ describe('placement', () => {
     s.money = 5000;
     const stove = objOfType(s, 'stove');
     const fridge = objOfType(s, 'fridge');
-    step(s, [{ type: 'moveObject', id: fridge.id, x: 12, y: 9, rot: 2 }]);
+    step(s, [{ type: 'moveObject', id: fridge.id, x: 6, y: 7, rot: 0 }]);
+    expect([fridge.x, fridge.y]).toEqual([6, 7]);
     step(s, [{ type: 'startBatch', stationId: stove.id, recipeId: 'pancakes' }]);
     const b = s.batches[stove.cook!.batchId!];
     runFor(s, 3);
@@ -73,11 +74,9 @@ describe('floor', () => {
     const s = newGame();
     s.money = 1000;
     // (20, 20) is void in the starter layout.
-    step(s, [{ type: 'paintFloor', tiles: [{ x: 20, y: 20 }, { x: 21, y: 20 }], tool: 'dining' }]);
-    expect(s.grid.floor[20 * s.grid.width + 20]).toBe(Floor.Dining);
+    step(s, [{ type: 'paintFloor', tiles: [{ x: 20, y: 20 }, { x: 21, y: 20 }], tool: 'floor' }]);
+    expect(s.grid.floor[20 * s.grid.width + 20]).toBe(Floor.Open);
     expect(s.money).toBe(1000 - 40);
-    step(s, [{ type: 'paintFloor', tiles: [{ x: 20, y: 20 }], tool: 'kitchen' }]);
-    expect(s.money).toBe(1000 - 42);
     step(s, [{ type: 'paintFloor', tiles: [{ x: 20, y: 20 }], tool: 'wall' }]);
     expect(s.grid.floor[20 * s.grid.width + 20]).toBe(Floor.Wall);
     // Can't wall over a work tile.
@@ -92,7 +91,7 @@ describe('layout analysis', () => {
     const s = newGame();
     expect(validateLayout(s)).toEqual([]);
     // Wall off the stock pot's work tile.
-    for (const [x, y] of [[5, 10], [7, 10], [5, 9], [6, 9], [7, 9]]) s.grid.floor[y * s.grid.width + x] = Floor.Wall;
+    for (const [x, y] of [[3, 13], [5, 13], [3, 12], [4, 12], [5, 12]]) s.grid.floor[y * s.grid.width + x] = Floor.Wall;
     s.layoutVersion++;
     const problems = validateLayout(s);
     expect(problems.map((p) => p.message)).toContain("Stock pot can't be reached");
@@ -100,12 +99,12 @@ describe('layout analysis', () => {
 
   it('finds chokepoints in a corridor', () => {
     const s = emptyState(7, 3, 1);
-    paintFloor(s, Floor.Kitchen, 0, 0, 3, 3);
-    paintFloor(s, Floor.Kitchen, 4, 0, 3, 3);
-    paintFloor(s, Floor.Kitchen, 3, 1, 1, 1); // one-tile doorway
+    paintFloor(s, Floor.Open, 0, 0, 3, 3);
+    paintFloor(s, Floor.Open, 4, 0, 3, 3);
+    paintFloor(s, Floor.Open, 3, 1, 1, 1); // one-tile doorway
     expect([...articulationPoints(s)]).toContain(1 * 7 + 3);
     // A station whose work tile is the doorway.
-    s.grid.floor[0 * 7 + 3] = Floor.Kitchen;
+    s.grid.floor[0 * 7 + 3] = Floor.Open;
     s.layoutVersion++;
     placeObject(s, { type: 'stove', x: 3, y: 0, rot: 0 });
     expect(chokepointWorkTiles(s).map((c) => c.tile)).toEqual([{ x: 3, y: 1 }]);

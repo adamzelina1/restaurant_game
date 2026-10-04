@@ -1,7 +1,7 @@
 import { FIRST_NAMES, STAFF_COLORS } from '../../data/names';
 import { TRAIT_LIST } from '../../data/traits';
 import { PRESET_BY_ID } from '../../data/workTypes';
-import { HIRING_REFRESH, HIRING_REFRESH_COST, MAX_SKILL, SIGNING_HOURS, STAMINA_MAX } from '../constants';
+import { HIRING_REFRESH, HIRING_REFRESH_COST, MAX_SKILL, SIGNING_HOURS } from '../constants';
 import { DIRS, isWalkable, objectsOfKind, workTile, type Tile } from '../grid/grid';
 import { pick, rand, randInt, randRange, weightedPick } from '../rng';
 import {
@@ -155,7 +155,6 @@ export function addEmployee(state: GameState, c: Candidate, at: Tile): Employee 
     color: c.color,
     skills: structuredClone(c.skills),
     walkSpeed: c.walkSpeed,
-    stamina: { current: STAMINA_MAX, max: STAMINA_MAX, drainRate: 1, recoverRate: 1 },
     traits: [...c.traits],
     priorities: presetPriorities(c.presetId, c),
     wage: c.wage,
@@ -166,8 +165,7 @@ export function addEmployee(state: GameState, c: Candidate, at: Tile): Employee 
     carrying: null,
     activity: 'idle',
     workingSkill: null,
-    onBreak: null,
-    time: { idle: 0, walking: 0, working: 0, blocked: 0, break: 0 },
+    time: { idle: 0, walking: 0, working: 0, blocked: 0 },
     x: at.x,
     y: at.y,
     step: null,

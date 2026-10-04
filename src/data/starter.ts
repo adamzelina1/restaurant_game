@@ -1,7 +1,7 @@
 import type { Passion, Priority, Rot, Skill, WorkType } from '../sim/state';
 
 export interface FloorRect {
-  floor: 'kitchen' | 'dining' | 'wall' | 'staff';
+  floor: 'floor' | 'wall';
   x: number;
   y: number;
   w: number;
@@ -24,65 +24,55 @@ export interface StarterStaff {
 }
 
 export const STARTER = {
-  // Room to expand: everything outside the starting rooms is void you can buy.
+  // One room (ChefVille-style): kitchen and tables share the same floor, so
+  // every tile is a choice between cooking space and seating. The rest of the
+  // lot is empty void you can buy to grow the room.
   width: 40,
   height: 28,
   money: 400,
   seed: 12345,
   /** Painted in order; later rects overwrite earlier ones. */
   floor: [
-    { floor: 'wall', x: 0, y: 0, w: 15, h: 13 },
-    { floor: 'kitchen', x: 1, y: 1, w: 13, h: 11 },
-    { floor: 'wall', x: 14, y: 0, w: 14, h: 18 },
-    { floor: 'dining', x: 15, y: 1, w: 12, h: 16 },
-    // Counter and pass gap between kitchen and dining, and a staff door.
-    { floor: 'kitchen', x: 14, y: 3, w: 1, h: 6 },
-    { floor: 'kitchen', x: 14, y: 10, w: 1, h: 1 },
-    // Front door.
-    { floor: 'dining', x: 27, y: 9, w: 1, h: 1 },
-    // Staff room below the kitchen, through a door at (9,12).
-    { floor: 'wall', x: 6, y: 12, w: 8, h: 6 },
-    { floor: 'staff', x: 7, y: 13, w: 6, h: 4 },
-    { floor: 'kitchen', x: 9, y: 12, w: 1, h: 1 },
+    { floor: 'wall', x: 0, y: 0, w: 26, h: 16 },
+    { floor: 'floor', x: 1, y: 1, w: 24, h: 14 },
+    // Front door in the east wall.
+    { floor: 'floor', x: 25, y: 13, w: 1, h: 1 },
   ] as FloorRect[],
   objects: [
-    // Back wall, facing south (work tiles on row 2).
+    // Kitchen line along the north wall, facing south (work tiles on row 2).
     { type: 'fridge', x: 1, y: 1, rot: 0 },
+    { type: 'cuttingBoard', x: 3, y: 1, rot: 0 },
     { type: 'cuttingBoard', x: 4, y: 1, rot: 0 },
-    { type: 'cuttingBoard', x: 5, y: 1, rot: 0 },
-    { type: 'mixingBench', x: 7, y: 1, rot: 0 },
+    { type: 'mixingBench', x: 6, y: 1, rot: 0 },
+    { type: 'stove', x: 8, y: 1, rot: 0 },
     { type: 'stove', x: 9, y: 1, rot: 0 },
-    { type: 'stove', x: 10, y: 1, rot: 0 },
-    { type: 'grill', x: 12, y: 1, rot: 0 },
-    // Front wall, facing north (work tiles on row 10).
-    { type: 'oven', x: 3, y: 11, rot: 2 },
-    { type: 'stockPot', x: 6, y: 11, rot: 2 },
-    // Serving counters in the pass-through, facing the kitchen (west).
-    { type: 'counter', x: 14, y: 3, rot: 1 },
-    { type: 'counter', x: 14, y: 4, rot: 1 },
-    { type: 'counter', x: 14, y: 5, rot: 1 },
-    { type: 'counter', x: 14, y: 6, rot: 1 },
-    { type: 'counter', x: 14, y: 7, rot: 1 },
-    // The pass: plated from the kitchen (13,8), picked up from the dining room (15,8).
-    { type: 'pass', x: 14, y: 8, rot: 1 },
-    // Dining room.
-    { type: 'entrance', x: 27, y: 9, rot: 0 },
-    { type: 'hostStand', x: 25, y: 7, rot: 0 },
-    { type: 'table4', x: 18, y: 3, rot: 0 },
-    { type: 'table4', x: 19, y: 9, rot: 0 },
-    { type: 'table2', x: 23, y: 3, rot: 0 },
-    { type: 'table2', x: 19, y: 14, rot: 0 },
-    { type: 'table2', x: 23, y: 14, rot: 0 },
-    { type: 'plant', x: 26, y: 1, rot: 0 },
-    { type: 'plant', x: 15, y: 16, rot: 0 },
+    { type: 'grill', x: 10, y: 1, rot: 0 },
+    // Along the south wall, facing north (work tiles on row 13).
+    { type: 'oven', x: 2, y: 14, rot: 2 },
+    { type: 'stockPot', x: 4, y: 14, rot: 2 },
+    // Serving counters, filled from the kitchen side (west).
+    { type: 'counter', x: 12, y: 3, rot: 1 },
+    { type: 'counter', x: 12, y: 4, rot: 1 },
+    { type: 'counter', x: 12, y: 5, rot: 1 },
+    { type: 'counter', x: 12, y: 6, rot: 1 },
+    { type: 'counter', x: 12, y: 7, rot: 1 },
+    // The pass: plated at (11,9), picked up by servers at (13,9).
+    { type: 'pass', x: 12, y: 9, rot: 1 },
+    // Seating.
+    { type: 'entrance', x: 25, y: 13, rot: 0 },
+    { type: 'hostStand', x: 22, y: 12, rot: 0 },
+    { type: 'table4', x: 16, y: 3, rot: 0 },
+    { type: 'table4', x: 16, y: 8, rot: 0 },
+    { type: 'table2', x: 21, y: 3, rot: 0 },
+    { type: 'table2', x: 21, y: 8, rot: 0 },
+    { type: 'table2', x: 16, y: 12, rot: 0 },
+    { type: 'plant', x: 24, y: 1, rot: 0 },
+    { type: 'plant', x: 13, y: 14, rot: 0 },
     // Idle spots along the west wall.
-    { type: 'idleSpot', x: 1, y: 5, rot: 0 },
     { type: 'idleSpot', x: 1, y: 6, rot: 0 },
     { type: 'idleSpot', x: 1, y: 7, rot: 0 },
     { type: 'idleSpot', x: 1, y: 8, rot: 0 },
-    // Staff room: a couch (two seats) and a coffee machine.
-    { type: 'couch', x: 7, y: 16, rot: 2 },
-    { type: 'coffeeMachine', x: 12, y: 13, rot: 1 },
+    { type: 'idleSpot', x: 1, y: 9, rot: 0 },
   ] as Placement[],
   staff: [
     {

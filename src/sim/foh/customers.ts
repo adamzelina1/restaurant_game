@@ -68,8 +68,10 @@ export function tickArrivals(state: GameState, dt: number): void {
   // Party members walk in one at a time when the doorway is clear.
   if (!door) return;
   const dt0 = workTile(door);
+  // Wait until the doorway area is clear, so guests file in without bumping.
+  const near = (x: number, y: number) => Math.max(Math.abs(x - dt0.x), Math.abs(y - dt0.y)) <= 1;
   const blocked =
-    values(state.customers).some((c) => (c.x === dt0.x && c.y === dt0.y) || (c.step?.tx === dt0.x && c.step?.ty === dt0.y)) ||
+    values(state.customers).some((c) => near(c.x, c.y) || (c.step !== null && near(c.step.tx, c.step.ty))) ||
     values(state.employees).some((e) => e.x === dt0.x && e.y === dt0.y);
   if (blocked) return;
   const p = values(state.parties).find((q) => q.toSpawn > 0);
@@ -136,8 +138,8 @@ function findTable(state: GameState, p: Party): PlacedObject | null {
     if (o.table!.partyId) continue;
     const seats = seatTiles(o);
     if (seats.length < p.size) continue;
-    if (!seats.slice(0, p.size).every((s) => Number.isFinite(distance(state, from.x, from.y, s.x, s.y, 'guest')))) continue;
-    const d = distance(state, from.x, from.y, seats[0].x, seats[0].y, 'guest');
+    if (!seats.slice(0, p.size).every((s) => Number.isFinite(distance(state, from.x, from.y, s.x, s.y)))) continue;
+    const d = distance(state, from.x, from.y, seats[0].x, seats[0].y);
     const key = seats.length * 1000 + d;
     if (key < bestKey) {
       bestKey = key;
@@ -361,7 +363,7 @@ export function queueSpots(state: GameState): Tile[] {
       for (const [dx, dy] of DIRS) {
         const n = { x: t.x + dx, y: t.y + dy };
         const k = `${n.x},${n.y}`;
-        if (seen.has(k) || !canStepStatic(l, t.x, t.y, dx, dy, 'guest')) continue;
+        if (seen.has(k) || !canStepStatic(l, t.x, t.y, dx, dy)) continue;
         seen.add(k);
         queue.push(n);
       }
@@ -377,7 +379,10 @@ export function customersAfterMove(state: GameState): void {
   const dt0 = door ? workTile(door) : null;
   for (const c of values(state.customers)) {
     const p = state.parties[c.partyId];
-    if (!p || (p.phase === 'leaving' && (!dt0 || isAt(c, dt0.x, dt0.y)))) delete state.customers[c.id];
+    // Leavers step out once they're at (or right next to) the door, so they
+    // don't fight arriving guests for the doorway tile.
+    const atDoor = !dt0 || (!c.step && Math.max(Math.abs(c.x - dt0.x), Math.abs(c.y - dt0.y)) <= 1);
+    if (!p || (p.phase === 'leaving' && atDoor)) delete state.customers[c.id];
   }
   for (const p of values(state.parties)) {
     if (p.phase === 'leaving' && p.toSpawn === 0 && p.members.every((id) => !state.customers[id])) delete state.parties[p.id];
@@ -398,7 +403,6 @@ export function customerAgents(state: GameState): AgentRef[] {
       order: 50000 + i++,
       canYield: !seated && !c.goal,
       canSwap: !seated,
-      mask: 'guest',
     });
   }
   return out;

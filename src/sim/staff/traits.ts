@@ -27,10 +27,6 @@ export function traitQualityLevels(e: HasTraits, skill: Skill): number {
   return n;
 }
 
-export function traitDrainMult(e: HasTraits): number {
-  return product(e, (t) => t.staminaDrain);
-}
-
 export function traitDropChance(e: HasTraits): number {
   let p = 0;
   for (const t of traitDefs(e)) p = Math.max(p, t.dropChance ?? 0);

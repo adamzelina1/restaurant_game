@@ -1,4 +1,4 @@
-# Restaurant Manager: Game Plan (draft v3)
+# Restaurant Manager: Game Plan (draft v4)
 
 A browser restaurant-management idle game: **ChefVille meets RimWorld**.
 
@@ -8,7 +8,83 @@ A browser restaurant-management idle game: **ChefVille meets RimWorld**.
   it to serve it to the counter, and customers order from what's in stock.
 - **From RimWorld:** the actual work (fetching, chopping, loading, plating,
   serving, bussing, dishwashing) is done by hired staff with skills, passions and
-  a work-priority grid, walking around a top-down kitchen whose layout you design.
+  a work-priority grid, walking around a top-down restaurant whose layout you design.
+- **One room, like ChefVille:** kitchen and seating share a single room, so every
+  tile is a trade-off between cooking space and seats.
+
+---
+
+## 0. Implementation status (handoff)
+
+**Read this first if you're picking the project up.** Milestones M0–M5 are built,
+tested and pushed (`main` on github.com/adamzelina1/restaurant_game). M6–M9 remain.
+
+### Done
+
+| # | What exists | Where |
+|---|---|---|
+| M0 | Vite + TS + Phaser 3 + Preact + Vitest scaffold; fixed 10 Hz tick loop with accumulator and background-tab catch-up; command queue; seeded RNG in state; localStorage saves (two rotating slots, export/import base64, versioned migrations) | `src/main.ts`, `src/game/runner.ts`, `src/save/` |
+| M1–M2 | Batch cooking end to end: recipe picker, per-crate fetch → prep → load tasks, passive and active cooking, READY → click to serve → urgent carry to a counter, click speed-up with heat + 25% cap, quality with grace/decay; task board with work types, priority tiers, chaining and reservations; 8-dir movement on cached distance fields with hard blocking (reserve, sidestep, wait, local A*, squeeze-past) and idle spots; all 6 recipes and their stations | `src/sim/production`, `tasks`, `agents`, `grid` |
+| M3 | Skills 0–20 with XP and passion multipliers, data-driven traits, hiring board (reputation-scaled, passion-biased), signing fee, fire, wages charged only while open, priority grid UI with presets and column setting | `src/sim/staff`, `src/ui/StaffPanel.tsx`, `HiringPanel.tsx` |
+| M4 | Build mode (pauses the sim): buy/move/rotate/sell with ghost preview, drag-rectangle floor/wall painting, busy objects locked, exit validation with red markers, work-tile display, chokepoint warnings (articulation points), route preview with walking time, walking/blocking heatmaps | `src/sim/build`, `src/render/BuildMode.ts`, `src/ui/BuildPanel.tsx` |
+| M5 | Guests as blocking agents: parties arrive through the entrance, queue on spots near the host stand, sit, browse, order (reserving counter servings), get food plated at the pass and served, eat, pay + tip, leave; patience per phase, angry leaving, satisfaction (waits, quality incl. plating bonus, decor), rolling star reputation driving traffic and applicants; open while stock or guests remain | `src/sim/foh`, `src/sim/reputation` |
+| Redesign | One shared room (single floor type) and **no stamina / breaks / staff room** (see §1). Save format v4 migrates older saves | `src/save/migrations.ts` |
+
+Tooling: `npm test` (Vitest, ~46 tests incl. determinism, save round-trip and an
+architecture guard that `src/sim` has no Phaser/DOM/`Math.random`),
+`npm run headless -- balance|stress|bench` (bot-played balance report, blocking
+stress test, ticks/s). See CLAUDE.md for commands.
+
+### Still to do
+
+1. **M6 – FOH phase 2:** tables left dirty after guests leave, `Bus` task
+   (carry dishes to the dish pit), dish pit station + `Dishes` task, a clean-plate
+   stock that plating consumes (plating stalls when it runs out). The `Bus` and
+   `Dishes` work types, priority-grid columns, presets and the Prima Donna trait
+   already exist; there are just no tasks for them yet. Table state lives in
+   `PlacedObject.table`; add a `dirty` flag there and block seating until bussed.
+2. **M7 – Progression:** recipe unlocks (money + star gate; data already in
+   `recipes.ts` `unlock`; `state.unlockedRecipes` currently starts with *all*
+   recipes, so gate it and add a recipe-book UI), mastery stars (`recipe.mastery`
+   thresholds exist, nothing tracks progress yet; count batches in the carry-to-
+   counter completion in `tasks/execute.ts`), equipment tiers (`PlacedObject.tier`
+   and `tierSpeed` / `tierServings` exist in `production/batches.ts`; add an
+   upgrade command, cost data in `src/data/equipment.ts`, star gates).
+3. **M8 – Idle features:** replace the placeholder `offlineCatchUp` in
+   `src/sim/offline/offline.ts` (it currently runs the full tick sim, ~50k
+   ticks/s, capped at 24h, so a long absence can take ~30s) with the coarse
+   event model of §9; needs rolling online stats (service capacity, average
+   tip/quality), which aren't tracked yet. Welcome-back report, tab-title badge +
+   optional browser notification when a batch is READY. Save migrations and
+   export/import already exist.
+4. **M9 – Polish:** art pass (sprite keys are not data-driven yet; everything is
+   drawn with Phaser Graphics in `WorldScene.ts`), sound, juice, balance tuning
+   with the headless runner (all numbers in `src/sim/constants.ts` and
+   `src/data/*` are first guesses), and UI polish (the HUD wraps on narrow windows).
+
+### Deviations from the original plan (intentional, keep unless asked)
+
+- Moving a prepped crate from the prep station to the cooking station is a
+  **Cook** task (`deliver` with workType Cook), not Haul. Raw fetches are Haul. The
+  employee who preps usually chains straight into it.
+- Tables carry their own chairs (`seats` in the station def). Seating is
+  automatic; there's no host *employee*. The host stand is just where guests queue.
+- The pass has two work tiles: kitchen side (plating) and dining side (pickup).
+- Customers choose dishes when the order is taken; each choice reserves a counter
+  serving (`counter.reserved`) so stock can't be double-sold.
+- Walls are painted with the floor tool rather than placed as objects; there are
+  no doors (the room is open).
+
+### Gotchas for the next agent
+
+- The in-app browser pane stops `requestAnimationFrame` while hidden, so the sim
+  doesn't tick then; the runner catches up on return. Don't mistake it for a freeze.
+- Object lists are cached per `layoutVersion` (`allObjects` / `objectsOfKind` in
+  `grid.ts`). Any code that adds or removes objects must bump `layoutVersion`.
+- `STATE_VERSION` is in `src/sim/newGame.ts`; any change to the `GameState` shape
+  needs a migration in `src/save/migrations.ts` and a test in `tests/save.test.ts`.
+- On this Windows machine, bash heredocs with non-ASCII characters fail; write
+  scripts to files instead.
 
 ---
 
@@ -30,10 +106,9 @@ A browser restaurant-management idle game: **ChefVille meets RimWorld**.
 | Front of house | **Full FOH**: customers, tables, order taking, plating, serving, bussing, dishwashing |
 | Ordering | **An employee takes the order at the table**; customers choose from dishes in stock |
 | Active play | **Click to speed up** cooking, with a heat meter and a per-batch cap (§4.6) |
-| Staff stats | **Skills (0–20, level with use) + passions + traits + stamina** |
-| Stamina recovery | **Auto-break in a placeable staff room** |
+| Staff stats | **Skills (0–20, level with use) + passions + traits**; no stamina or breaks |
 | Ingredients | **Unlimited supply, paid when a batch starts**; staff still walk to the fridge/pantry |
-| Layout | **Free grid build mode**, buy floor tiles to expand |
+| Layout | **One shared room** (ChefVille-style): kitchen and seating use the same floor; free grid build mode, buy floor tiles to expand |
 | Movement | **8-directional grid movement, drawn smoothly**; diagonals cost √2, no corner cutting |
 | Collision | **Hard blocking**: one agent per tile; staff block each other, so layout and modularity matter (§3) |
 | Batch size vs walking | **Prep scales with batch size**: ingredients come in crates, one trip and one prep step per crate |
@@ -48,7 +123,7 @@ A browser restaurant-management idle game: **ChefVille meets RimWorld**.
 | Panel UI | **DOM overlay with Preact** over the Phaser canvas |
 | Game speed | **Pause + 1× only** for players; fast-forward exists in dev builds only |
 | Art | **Placeholders first**, then a CC0/paid top-down asset pack |
-| Not included | **No mood/thoughts, social relationships, backstories or random events** |
+| Not included | **No mood/thoughts, social relationships, backstories, random events, stamina or staff room** |
 
 ---
 
@@ -93,32 +168,28 @@ A browser restaurant-management idle game: **ChefVille meets RimWorld**.
 
 ```
 src/
-  main.ts                 # boot Phaser + game loop
-  sim/
-    state.ts              # GameState + entity types
-    step.ts               # fixed-tick orchestrator
-    commands.ts           # player command handlers
-    rng.ts
-    grid/                 # tilemap, walkability, distance fields
-    production/           # batches: start, prep graph, cooking, ready, serve
-    tasks/                # task board, work types, priority-grid selection, reservations
-    agents/               # employee state machine (one type for all staff)
-    stations/             # station state, speed-ups, heat
-    counters/             # serving counters, stock, freshness
-    foh/                  # customers, tables, patience, payment
-    economy/              # money, wages, prices, purchases
+  main.ts                 # boot: load save, offline catch-up, Phaser + Preact, autosave
+  game/runner.ts          # owns GameState, fixed-tick accumulator, command queue
+  sim/                    # pure TS, no Phaser/DOM
+    state.ts  step.ts  commands.ts  newGame.ts  constants.ts  rng.ts  util.ts
+    skills.ts  quality.ts
+    grid/                 # tiles, footprints/rotation, cached layout + distance fields, A*
+    agents/               # movement (blocking + escalation), employee decide/after-move
+    tasks/                # task board (create/refresh/pick/claim), task scripts, toils
+    production/           # batches: start, cancel, cook, ready, serve request
+    stations/             # click speed-up, heat
+    counters/             # stock, reservations, freshness
+    foh/                  # guests: arrivals, parties, seating, service scripts
+    staff/                # traits, XP/wages, hiring
+    economy/              # wages, demand (variety)
     reputation/
-    offline/              # offline catch-up model
-  data/
-    recipes.ts  stations.ts  workTypes.ts  traits.ts  equipment.ts  names.ts
-  render/
-    BootScene.ts  WorldScene.ts  BuildModeScene.ts
-    sprites/              # entity id → sprite sync
-  ui/                     # Preact: HUD, recipe picker, staff grid, hiring, build palette…
-  save/
-    save.ts  migrations.ts
-tools/
-  headless.ts             # run the sim N hours with no rendering → balance report
+    build/                # placement rules, floor painting, layout analysis
+    offline/              # catch-up (placeholder until M8)
+  data/                   # recipes, stations, ingredients, traits, work types/presets, names, starter layout, build palette
+  render/                 # WorldScene (all drawing + input), BuildMode controller
+  ui/                     # Preact HUD and panels, UI-only store
+  save/                   # save slots, export/import, migrations
+tools/                    # headless.ts (balance/stress/bench), bot.ts (scripted player)
 tests/
 ```
 
@@ -181,7 +252,7 @@ whose work tiles sit off the main walkways.
   Step 4 guarantees **no permanent deadlocks**, including head-on meetings in a
   1-tile corridor and 3+ agent cycles. Blocking stays expensive enough that the
   player sees it and fixes the layout.
-- **Idle agents get out of the way:** idle staff walk to the staff room or a
+- **Idle agents get out of the way:** idle staff walk to a
   designated **idle spot**, never stand in walkways, and step aside when a working
   agent requests their tile.
 - **Customers** follow the same rules in the dining room. Seated customers sit on
@@ -409,7 +480,6 @@ type Employee = {
   id; name; portraitSeed;
   skills: Record<Skill, { level: number /* 0–20 */; xp: number; passion: Passion }>;
   walkSpeed: number;
-  stamina: { current: number; max: number; drainRate: number; recoverRate: number };
   traits: TraitId[];                                  // 0–2
   priorities: Record<WorkType, 0 | 1 | 2 | 3 | 4>;    // 0 = off
   wage: number;                                       // per hour
@@ -423,11 +493,11 @@ type Employee = {
 - **Cook skill** affects batch quality and, for active recipes, cook speed.
 - **XP** is gained per second of work in that skill, multiplied by passion:
 
-  | Passion | XP multiplier | Extra effect |
-  |---|---|---|
-  | None | 0.35× | — |
-  | Minor 🔥 | 1.0× | −15% stamina drain while doing this work |
-  | Major 🔥🔥 | 1.5× | −30% stamina drain while doing this work |
+  | Passion | XP multiplier |
+  |---|---|
+  | None | 0.35× |
+  | Minor 🔥 | 1.0× |
+  | Major 🔥🔥 | 1.5× |
 
 - **Wage** scales with total skill and passions, and rises slowly as an employee
   levels up.
@@ -437,7 +507,6 @@ type Employee = {
   - *Grill Master* (+30% Grill speed and quality)
   - *Clumsy* (5% chance to drop a carried item)
   - *Perfectionist* (+quality, −10% speed)
-  - *Iron Lungs* (slower stamina drain)
   - *Mentor* (nearby staff gain +XP)
   - *Prima Donna* (refuses Dishes and Bus)
   - *Charming* (+Service, bigger tips)
@@ -459,15 +528,9 @@ Joe   (new)     –    2    –   │   3      3   │  1    1    1
 - **New hires get a preset** based on their best passions, so the restaurant
   works without the player ever opening the grid.
 
-### 5.3 Stamina and breaks
+### 5.3 Stamina and breaks (dropped)
 
-- Stamina drains during active work, and more slowly while walking or carrying.
-- Below a threshold, the employee finishes the current task, then walks to the
-  **staff room**.
-- Staff room furniture (couch, coffee machine) raises the recovery rate. Room
-  capacity limits simultaneous breaks.
-- Stamina below a lower threshold applies a speed penalty, which prevents
-  starvation if the staff room is full.
+Removed by design decision: staff work without fatigue, and there is no staff room.
 
 ### 5.4 Hiring
 
@@ -482,6 +545,10 @@ Joe   (new)     –    2    –   │   3      3   │  1    1    1
 ---
 
 ## 6. Front of house (full)
+
+Guests and staff share the one room: guests walk the same floor as the kitchen
+staff and block each other, so where tables sit relative to the kitchen line and
+the pass is part of the layout puzzle.
 
 Customer lifecycle:
 
@@ -531,7 +598,7 @@ taking, plating, serving and payment; then dirty tables, bussing and dishwashing
   "menu" is simply whatever is currently on the counters.
 - **Equipment tiers:** each station has tiers 1–N adding cook speed, quality and
   +% servings.
-- **Expansion:** buy floor tiles or rooms (kitchen, dining, staff room) and more
+- **Expansion:** buy floor tiles to grow the one room, and more
   serving counters.
 
 ### 7.1 Recipe mastery
@@ -563,7 +630,8 @@ taking, plating, serving and payment; then dirty tables, bussing and dishwashing
 - A station can't be moved or sold while it has a batch in progress (or the batch
   is refunded).
 - **Validation on exit:** every interaction tile must be reachable, and there must
-  be a path from the entrance to each table and from the kitchen to the pass.
+  be a path from the entrance to each chair and the host stand, and every work
+  tile (including both sides of the pass) must be reachable by staff.
   Invalid layouts are blocked with a highlight showing why.
 - Exiting build mode recomputes distance fields; in-flight tasks are re-queued.
 
@@ -636,23 +704,23 @@ hour.
 
 ## 12. Milestones
 
-| # | Milestone | Playable result |
-|---|---|---|
-| M0 | Scaffold: Vite + TS + Phaser + Preact + Vitest, fixed-tick loop, grid render, command queue | Empty grid, ticking clock |
-| M1 | 1 employee; fridge → cutting board → stove; 8-dir movement + distance fields; recipe picker; crate-based prep → load → cook → READY → click to serve → counter; abstract buyers deplete stock; click speed-up; basic save | The core ChefVille loop |
-| M2 | Per-crate task graphs, work types + priority-tier selection (priorities set in code), multiple employees, **hard blocking + deadlock escalation + idle spots**, oven/grill/stock pot, 6 recipes from 3 min to 12 h | Parallel kitchen teamwork, with traffic jams |
-| M3 | Skills 0–20 + XP + passions, traits, stamina + staff room, hiring board, wages, **priority grid UI + presets** | Staff management |
-| M4 | Build mode: place/move/rotate, counters, floor expansion, reachability validation, work-tile display, chokepoint warnings, route preview, heatmaps | Layout optimization |
-| M5 | FOH phase 1: customers (flat traffic, blocking), tables, open/closed, Take orders + Plate + Serve, Service skill, patience, tips, reputation | Full service loop |
-| M6 | FOH phase 2: dirty tables, Bus + Dishes, dish pit, clean-plate stock | Second logistics puzzle |
-| M7 | Progression: recipe book unlocks, recipe mastery stars, equipment tiers, star-gated unlocks | Long-term goals |
-| M8 | Offline catch-up model, welcome-back report, ready notifications, save migrations, export/import | True idle game |
-| M9 | Art pass, sound, juice, headless balance runs, tuning | Release candidate |
+| # | Milestone | Playable result | Status |
+|---|---|---|---|
+| M0 | Scaffold: Vite + TS + Phaser + Preact + Vitest, fixed-tick loop, grid render, command queue | Empty grid, ticking clock | ✅ done |
+| M1 | 1 employee; fridge → cutting board → stove; 8-dir movement + distance fields; recipe picker; crate-based prep → load → cook → READY → click to serve → counter; abstract buyers deplete stock; click speed-up; basic save | The core ChefVille loop | ✅ done |
+| M2 | Per-crate task graphs, work types + priority-tier selection (priorities set in code), multiple employees, **hard blocking + deadlock escalation + idle spots**, oven/grill/stock pot, 6 recipes from 3 min to 12 h | Parallel kitchen teamwork, with traffic jams | ✅ done |
+| M3 | Skills 0–20 + XP + passions, traits, hiring board, wages, **priority grid UI + presets** (stamina + staff room dropped) | Staff management | ✅ done |
+| M4 | Build mode: place/move/rotate, counters, floor expansion, reachability validation, work-tile display, chokepoint warnings, route preview, heatmaps | Layout optimization | ✅ done |
+| M5 | FOH phase 1: customers (flat traffic, blocking), tables, open/closed, Take orders + Plate + Serve, Service skill, patience, tips, reputation | Full service loop | ✅ done |
+| M6 | FOH phase 2: dirty tables, Bus + Dishes, dish pit, clean-plate stock | Second logistics puzzle | to do |
+| M7 | Progression: recipe book unlocks, recipe mastery stars, equipment tiers, star-gated unlocks | Long-term goals | to do |
+| M8 | Offline catch-up model, welcome-back report, ready notifications (save migrations and export/import already done) | True idle game | to do |
+| M9 | Art pass, sound, juice, headless balance runs, tuning | Release candidate | to do |
 
-The headless runner (`tools/headless.ts`) is built in M2. It:
+The headless runner (`tools/headless.ts`) was built in M2. It:
 
-- Validates the offline model by comparing `offlineCatchUp` against a full tick
-  simulation of the same period.
+- **To do (M8):** validate the offline model by comparing `offlineCatchUp` against
+  a full tick simulation of the same period.
 - **Stress-tests blocking:** it runs random layouts with many agents and asserts
   that no agent stays stuck longer than the squeeze-past timeout.
 

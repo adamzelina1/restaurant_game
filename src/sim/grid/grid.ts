@@ -15,7 +15,7 @@ export function inBounds(state: GameState, x: number, y: number): boolean {
 }
 
 export function isFloor(f: Floor): boolean {
-  return f === Floor.Kitchen || f === Floor.Dining || f === Floor.Staff;
+  return f === Floor.Open;
 }
 
 /** Footprint size after rotation. */
@@ -67,20 +67,15 @@ export function workTile(obj: PlacedObject): Tile {
 // ---------------------------------------------------------------------------
 // Derived layout data, cached per grid object and invalidated by layoutVersion.
 
-/** Who is walking: staff may use any floor; guests stay on dining floor. */
-export type Mask = 'staff' | 'guest';
-
 export interface Layout {
   version: number;
   width: number;
   height: number;
-  /** 1 = staff may stand here. */
+  /** 1 = an agent may stand here. */
   walkable: Uint8Array;
-  /** 1 = guests may stand here (dining floor only). */
-  guestWalkable: Uint8Array;
   /** Object occupying each tile ('' for none). Walkable markers are not listed. */
   objectAt: Id[];
-  /** Distance fields keyed by target tile index * 2 + (guest ? 1 : 0). */
+  /** Distance fields keyed by target tile index. */
   fields: Map<number, Float32Array>;
   /** Objects in creation order, and grouped by kind. Objects are only added or
    *  removed together with a layout change, so these stay valid until then. */
@@ -96,12 +91,8 @@ export function layout(state: GameState): Layout {
   if (cached && cached.version === state.layoutVersion) return cached;
   const { width, height, floor } = state.grid;
   const walkable = new Uint8Array(width * height);
-  const guestWalkable = new Uint8Array(width * height);
   const objectAt: Id[] = new Array(width * height).fill('');
-  for (let i = 0; i < floor.length; i++) {
-    walkable[i] = isFloor(floor[i]) ? 1 : 0;
-    guestWalkable[i] = floor[i] === Floor.Dining ? 1 : 0;
-  }
+  for (let i = 0; i < floor.length; i++) walkable[i] = isFloor(floor[i]) ? 1 : 0;
   const objects = Object.values(state.objects);
   const byKind = new Map<StationKind, PlacedObject[]>();
   const byType = new Map<string, PlacedObject[]>();
@@ -116,7 +107,6 @@ export function layout(state: GameState): Layout {
       if (!inBounds(state, t.x, t.y)) continue;
       const i = t.y * width + t.x;
       walkable[i] = 0;
-      guestWalkable[i] = 0;
       objectAt[i] = obj.id;
     }
   }
@@ -125,7 +115,6 @@ export function layout(state: GameState): Layout {
     width,
     height,
     walkable,
-    guestWalkable,
     objectAt,
     fields: new Map(),
     objects,
@@ -177,19 +166,14 @@ export const DIRS: readonly [number, number][] = [
   [1, 1], [1, -1], [-1, 1], [-1, -1],
 ];
 
-export function walkMask(l: Layout, mask: Mask): Uint8Array {
-  return mask === 'guest' ? l.guestWalkable : l.walkable;
-}
-
 /** Can a step from (x,y) by (dx,dy) be taken on the static layout? No corner cutting. */
-export function canStepStatic(l: Layout, x: number, y: number, dx: number, dy: number, mask: Mask = 'staff'): boolean {
+export function canStepStatic(l: Layout, x: number, y: number, dx: number, dy: number): boolean {
   const nx = x + dx;
   const ny = y + dy;
   if (nx < 0 || ny < 0 || nx >= l.width || ny >= l.height) return false;
-  const w = mask === 'guest' ? l.guestWalkable : l.walkable;
-  if (!w[ny * l.width + nx]) return false;
+  if (!l.walkable[ny * l.width + nx]) return false;
   if (dx !== 0 && dy !== 0) {
-    if (!w[y * l.width + nx] || !w[ny * l.width + x]) return false;
+    if (!l.walkable[y * l.width + nx] || !l.walkable[ny * l.width + x]) return false;
   }
   return true;
 }

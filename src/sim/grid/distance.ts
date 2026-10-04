@@ -1,5 +1,5 @@
 import type { GameState } from '../state';
-import { DIRS, canStepStatic, layout, type Layout, type Mask } from './grid';
+import { DIRS, canStepStatic, layout, type Layout } from './grid';
 
 const SQRT2 = Math.SQRT2;
 
@@ -51,7 +51,7 @@ export class Heap {
   }
 }
 
-function computeField(l: Layout, target: number, mask: Mask): Float32Array {
+function computeField(l: Layout, target: number): Float32Array {
   const dist = new Float32Array(l.width * l.height).fill(Infinity);
   dist[target] = 0;
   const heap = new Heap();
@@ -64,7 +64,7 @@ function computeField(l: Layout, target: number, mask: Mask): Float32Array {
     for (let k = 0; k < 8; k++) {
       const [dx, dy] = DIRS[k];
       // Moves are symmetric, so a reverse step from neighbour to cur is valid iff this one is.
-      if (!canStepStatic(l, cx, cy, dx, dy, mask)) continue;
+      if (!canStepStatic(l, cx, cy, dx, dy)) continue;
       const n = (cy + dy) * l.width + (cx + dx);
       const nd = d + (k < 4 ? 1 : SQRT2);
       if (nd < dist[n]) {
@@ -82,19 +82,18 @@ function computeField(l: Layout, target: number, mask: Mask): Float32Array {
  * targets still get a field (distances to reach it from a walkable neighbour are
  * not defined, so callers should only target walkable tiles).
  */
-export function distanceField(state: GameState, tx: number, ty: number, mask: Mask = 'staff'): Float32Array {
+export function distanceField(state: GameState, tx: number, ty: number): Float32Array {
   const l = layout(state);
   const target = ty * l.width + tx;
-  const key = target * 2 + (mask === 'guest' ? 1 : 0);
-  let f = l.fields.get(key);
+  let f = l.fields.get(target);
   if (!f) {
-    f = computeField(l, target, mask);
-    l.fields.set(key, f);
+    f = computeField(l, target);
+    l.fields.set(target, f);
   }
   return f;
 }
 
-export function distance(state: GameState, fromX: number, fromY: number, toX: number, toY: number, mask: Mask = 'staff'): number {
+export function distance(state: GameState, fromX: number, fromY: number, toX: number, toY: number): number {
   if (fromX < 0 || fromY < 0 || fromX >= state.grid.width || fromY >= state.grid.height) return Infinity;
-  return distanceField(state, toX, toY, mask)[fromY * state.grid.width + fromX];
+  return distanceField(state, toX, toY)[fromY * state.grid.width + fromX];
 }
