@@ -2,7 +2,7 @@ import type { Skill } from '../sim/state';
 
 export type StationKind =
   | 'source' | 'prep' | 'cook' | 'counter' | 'idle'
-  | 'table' | 'host' | 'pass' | 'entrance' | 'decor';
+  | 'table' | 'host' | 'pass' | 'entrance' | 'decor' | 'dishpit';
 
 export interface StationDef {
   id: string;
@@ -50,6 +50,7 @@ export const STATIONS: Record<string, StationDef> = {
   hostStand: { id: 'hostStand', name: 'Host stand', kind: 'host', w: 1, h: 1, work: [S], cost: 150, color: 0x6d4c41, label: 'HOST' },
   // The pass: plated on the kitchen side (work tile 0), picked up from the dining side (work tile 1).
   pass: { id: 'pass', name: 'The Pass', kind: 'pass', w: 1, h: 1, work: [S, { dx: 0, dy: -1 }], cost: 400, color: 0xb7b7b7, label: 'PASS' },
+  dishPit: { id: 'dishPit', name: 'Dish pit', kind: 'dishpit', w: 1, h: 1, work: [S], cost: 350, color: 0x76a5af, label: 'DSH' },
   entrance: { id: 'entrance', name: 'Entrance', kind: 'entrance', w: 1, h: 1, work: [{ dx: 0, dy: 0 }], walkable: true, cost: 0, color: 0xffd966, label: '' },
   plant: { id: 'plant', name: 'Plant', kind: 'decor', w: 1, h: 1, work: [], cost: 120, color: 0x38761d, label: '' },
 };

@@ -7,7 +7,7 @@ import { counterStock, lotQuality } from '../sim/counters/counters';
 import { batchProgress, batchTimeLeft, readyBatchQuality } from '../sim/production/batches';
 import { readyGrace } from '../sim/quality';
 import { SKILLS, WORK_TYPES, type Activity, type Customer, type Employee, type GameState, type PlacedObject } from '../sim/state';
-import { PASS_CAPACITY } from '../sim/constants';
+import { PASS_CAPACITY, PLATE_PACK, PLATE_PACK_COST } from '../sim/constants';
 import { patienceUsed } from '../sim/foh/customers';
 import { seatTiles } from '../sim/grid/grid';
 import { speedUpTarget } from '../sim/stations/stations';
@@ -68,6 +68,8 @@ function ObjectView({ runner, o, close }: { runner: GameRunner; o: PlacedObject;
           plate food on the kitchen side; servers pick it up on the dining side.
         </p>
       )}
+      {def.kind === 'pass' && <PlateRack runner={runner} />}
+      {def.kind === 'dishpit' && <DishPitView runner={runner} o={o} />}
       {def.kind === 'host' && <p class="muted">Guests wait here for a free table.</p>}
       {def.kind === 'entrance' && <p class="muted">Guests come and go through here.</p>}
       {def.kind === 'decor' && <p class="muted">Guests at nearby tables are a little happier.</p>}
@@ -213,8 +215,41 @@ function CounterView({ s, o }: { s: GameState; o: PlacedObject }) {
   );
 }
 
+export function PlateRack({ runner }: { runner: GameRunner }) {
+  const { clean, total } = runner.state.plates;
+  return (
+    <div>
+      <p>
+        Clean plates: <b>{clean}</b> / {total}
+        {clean === 0 && <span class="warn"> (plating has stopped!)</span>}
+      </p>
+      <Bar value={total ? clean / total : 0} color={clean === 0 ? '#e06666' : '#76a5af'} />
+      <button class="btn" onClick={() => runner.send({ type: 'buyPlates' })} title="More plates buffer a slow dish pit">
+        Buy {PLATE_PACK} plates ({formatMoney(PLATE_PACK_COST)})
+      </button>
+    </div>
+  );
+}
+
+function DishPitView({ runner, o }: { runner: GameRunner; o: PlacedObject }) {
+  const pit = o.dishPit!;
+  return (
+    <div>
+      <p>
+        {pit.dirty} dirty plate{pit.dirty === 1 ? '' : 's'} to wash
+        {pit.incoming.length > 0 && <span class="muted"> · {pit.incoming.length} busser(s) on the way</span>}
+      </p>
+      <p class="muted">Bussers bring dishes here from dirty tables; staff on Dishes wash them back onto the plate rack.</p>
+      <PlateRack runner={runner} />
+    </div>
+  );
+}
+
 function TableView({ s, o }: { s: GameState; o: PlacedObject }) {
   const p = o.table!.partyId ? s.parties[o.table!.partyId] : null;
+  if (!p && o.table!.dirty > 0) {
+    return <p class="warn">Dirty: {o.table!.dirty} plates to clear before guests can sit here.</p>;
+  }
   if (!p) return <p class="muted">Free. Seats {seatTiles(o).length}.</p>;
   return (
     <div>

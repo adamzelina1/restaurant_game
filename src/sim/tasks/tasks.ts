@@ -2,6 +2,7 @@ import { recipe } from '../../data/recipes';
 import { stationDef } from '../../data/stations';
 import { clearGoal } from '../agents/movement';
 import { PASS_CAPACITY } from '../constants';
+import { breakPlates, discardPlates, nearestPit } from '../foh/dishes';
 import { replate } from '../foh/service';
 import { distance } from '../grid/distance';
 import { objectsOfKind, objectsOfType, workTile, workTiles, type Tile } from '../grid/grid';
@@ -14,6 +15,7 @@ export interface TaskRefs {
   crateId?: Id | null;
   partyId?: Id | null;
   customerId?: Id | null;
+  objectId?: Id | null;
   urgent?: boolean;
 }
 
@@ -30,6 +32,8 @@ export function createTask(state: GameState, kind: TaskKind, workType: WorkType,
     crateId: refs.crateId ?? null,
     partyId: refs.partyId ?? null,
     customerId: refs.customerId ?? null,
+    objectId: refs.objectId ?? null,
+    plate: false,
     sourceId: null,
     targetId: null,
   };
@@ -206,11 +210,22 @@ function isReady(state: GameState, t: Task): boolean {
     }
     case 'plate': {
       const c = t.customerId ? state.customers[t.customerId] : null;
-      return !!c && !!c.dish && !!c.counterId && !c.plate && objectsOfKind(state, 'pass').some(passHasRoom);
+      // Plating stalls when the clean-plate rack is empty (PLAN §6).
+      return (
+        !!c && !!c.dish && !!c.counterId && !c.plate && state.plates.clean > 0 && objectsOfKind(state, 'pass').some(passHasRoom)
+      );
     }
     case 'serve': {
       const c = t.customerId ? state.customers[t.customerId] : null;
       return c?.plate?.at === 'pass';
+    }
+    case 'bus': {
+      const o = t.objectId ? state.objects[t.objectId] : null;
+      return !!o?.table && o.table.dirty > 0 && !o.table.partyId && objectsOfKind(state, 'dishpit').length > 0;
+    }
+    case 'wash': {
+      const o = t.objectId ? state.objects[t.objectId] : null;
+      return !!o?.dishPit && o.dishPit.dirty > 0;
     }
   }
 }
@@ -261,6 +276,11 @@ function taskAnchor(state: GameState, t: Task, emp: Employee): Tile | null {
       const c = state.customers[t.customerId!];
       const pass = c?.plate?.passId ? state.objects[c.plate.passId] : null;
       return pass ? passDiningTile(pass) : null;
+    }
+    case 'bus':
+    case 'wash': {
+      const o = t.objectId ? state.objects[t.objectId] : null;
+      return o ? workTile(o) : null;
     }
   }
 }
@@ -394,10 +414,29 @@ export function claimTask(state: GameState, emp: Employee, t: Task): boolean {
           pass = o;
         }
       }
-      if (!pass) return false;
+      if (!pass || state.plates.clean <= 0) return false;
       t.sourceId = counter.id;
       t.targetId = pass.id;
       pass.pass!.incoming.push(t.id);
+      state.plates.clean--;
+      t.plate = true;
+      break;
+    }
+    case 'bus': {
+      const table = t.objectId ? state.objects[t.objectId] : null;
+      if (!table) return false;
+      const tt = workTile(table);
+      const pit = nearestPit(state, tt);
+      if (!pit || !reachable(state, here, tt) || !reachable(state, tt, workTile(pit))) return false;
+      t.sourceId = table.id;
+      t.targetId = pit.id;
+      pit.dishPit!.incoming.push(t.id);
+      break;
+    }
+    case 'wash': {
+      const pit = t.objectId ? state.objects[t.objectId] : null;
+      if (!pit || !reachable(state, here, workTile(pit))) return false;
+      t.targetId = pit.id;
       break;
     }
     case 'serve': {
@@ -420,11 +459,17 @@ export function claimTask(state: GameState, emp: Employee, t: Task): boolean {
 }
 
 function releaseReservations(state: GameState, t: Task): void {
+  // An unused clean plate goes back on the rack.
+  if (t.plate) {
+    state.plates.clean++;
+    t.plate = false;
+  }
   if (!t.targetId) return;
   const target = state.objects[t.targetId];
   if (target?.prep && target.prep.reservedBy === t.id) target.prep.reservedBy = null;
   if (target?.counter) target.counter.incoming = target.counter.incoming.filter((id) => id !== t.id);
   if (target?.pass) target.pass.incoming = target.pass.incoming.filter((id) => id !== t.id);
+  if (target?.dishPit) target.dishPit.incoming = target.dishPit.incoming.filter((id) => id !== t.id);
 }
 
 /** Unclaim the task so someone else can pick it up. */
@@ -439,23 +484,32 @@ export function unclaimTask(state: GameState, t: Task): void {
 
 /**
  * Make an employee drop whatever task they are doing. A carried crate or pot is
- * put down on their tile and its task goes back on the board; a dropped plate
- * is lost and the guest's food is plated again if there's stock.
+ * put down on their tile and its task goes back on the board. Food on a plate
+ * is lost and the guest's dish is plated again if there's stock; the plate
+ * goes to the dish pit, or breaks if it was `dropped`. So do carried dishes.
  */
-export function abandonTask(state: GameState, emp: Employee): void {
+export function abandonTask(state: GameState, emp: Employee, dropped = false): void {
   const t = emp.taskId ? state.tasks[emp.taskId] : null;
   let replateFor: Id | null = null;
   if (emp.carrying) {
     const x = emp.x;
     const y = emp.y;
-    if (emp.carrying.kind === 'crate') {
-      const c = state.crates[emp.carrying.id];
+    const carry = emp.carrying;
+    if (carry.kind === 'crate') {
+      const c = state.crates[carry.id];
       if (c) c.loc = { kind: 'floor', x, y };
-    } else if (emp.carrying.kind === 'pot') {
-      const b = state.batches[emp.carrying.id];
+    } else if (carry.kind === 'pot') {
+      const b = state.batches[carry.id];
       if (b) b.pot = { kind: 'floor', x, y };
+    } else if (carry.kind === 'dishes') {
+      if (dropped) breakPlates(state, carry.n);
+      else discardPlates(state, carry.n, carry.id);
     } else {
-      replateFor = emp.carrying.id;
+      replateFor = carry.id;
+      const guest = state.customers[carry.id];
+      if (guest) guest.plate = null;
+      if (dropped) breakPlates(state, 1);
+      else discardPlates(state, 1);
     }
     emp.carrying = null;
   }

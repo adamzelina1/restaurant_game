@@ -1,6 +1,7 @@
 import { RECIPE_LIST } from '../data/recipes';
 import { STARTER, type Placement, type StarterStaff } from '../data/starter';
 import { stationDef } from '../data/stations';
+import { START_PLATES } from './constants';
 import { createRng } from './rng';
 import { addEmployee, refreshCandidates } from './staff/hiring';
 import { wageFor } from './staff/xp';
@@ -16,7 +17,7 @@ import {
 } from './state';
 import { newId } from './util';
 
-export const STATE_VERSION = 4;
+export const STATE_VERSION = 5;
 
 const FLOOR_OF = { floor: Floor.Open, wall: Floor.Wall } as const;
 
@@ -39,6 +40,7 @@ export function emptyState(width: number, height: number, seed: number): GameSta
     tasks: {},
     heat: 0,
     nextPartyIn: 10,
+    plates: { clean: START_PLATES, total: START_PLATES },
     unlockedRecipes: RECIPE_LIST.map((r) => r.id),
     reputation: 1,
     hiring: { candidates: [], refreshAt: 0 },
@@ -54,6 +56,7 @@ export function emptyState(width: number, height: number, seed: number): GameSta
       wagesPaid: 0,
       customersServed: 0,
       customersLost: 0,
+      platesBroken: 0,
       blockedByTile: {},
       trafficByTile: {},
     },
@@ -76,7 +79,8 @@ export function placeObject(state: GameState, p: Placement, tier = 1): PlacedObj
   if (def.kind === 'cook') o.cook = { batchId: null };
   if (def.kind === 'prep') o.prep = { crateId: null, reservedBy: null };
   if (def.kind === 'counter') o.counter = { recipeId: null, lots: [], incoming: [], reserved: 0 };
-  if (def.kind === 'table') o.table = { partyId: null };
+  if (def.kind === 'table') o.table = { partyId: null, dirty: 0 };
+  if (def.kind === 'dishpit') o.dishPit = { dirty: 0, incoming: [] };
   if (def.kind === 'pass') o.pass = { plates: [], incoming: [] };
   state.objects[o.id] = o;
   state.layoutVersion++;

@@ -1,4 +1,4 @@
-import { BASE_WALK_SPEED, CARRY_CRATE_SPEED, CARRY_POT_SPEED } from './constants';
+import { BASE_WALK_SPEED, CARRY_CRATE_SPEED, CARRY_DISHES_SPEED, CARRY_POT_SPEED } from './constants';
 import { traitQualityLevels, traitWalkMult, traitWorkMult } from './staff/traits';
 import type { Employee, Skill } from './state';
 
@@ -25,5 +25,6 @@ export function empWalkSpeed(emp: Employee): number {
   let s = BASE_WALK_SPEED * emp.walkSpeed * traitWalkMult(emp);
   if (emp.carrying?.kind === 'crate') s *= CARRY_CRATE_SPEED;
   else if (emp.carrying?.kind === 'pot') s *= CARRY_POT_SPEED;
+  else if (emp.carrying?.kind === 'dishes') s *= CARRY_DISHES_SPEED;
   return s;
 }

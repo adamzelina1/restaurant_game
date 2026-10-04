@@ -32,6 +32,10 @@ export function describeTask(s: GameState, t: Task): string {
       return `Plating ${dish}`;
     case 'serve':
       return `Serving ${dish}`;
+    case 'bus':
+      return 'Clearing a table';
+    case 'wash':
+      return 'Washing dishes';
   }
 }
 

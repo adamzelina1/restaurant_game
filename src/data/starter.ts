@@ -58,6 +58,8 @@ export const STARTER = {
     { type: 'counter', x: 12, y: 7, rot: 1 },
     // The pass: plated at (11,9), picked up by servers at (13,9).
     { type: 'pass', x: 12, y: 9, rot: 1 },
+    // Dish pit next to the pass, washed from the kitchen side (11,11).
+    { type: 'dishPit', x: 12, y: 11, rot: 1 },
     // Seating.
     { type: 'entrance', x: 25, y: 13, rot: 0 },
     { type: 'hostStand', x: 22, y: 12, rot: 0 },

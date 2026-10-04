@@ -68,6 +68,15 @@ export interface CounterSlot {
 
 export interface TableSlot {
   partyId: Id | null;
+  /** Dirty plates left by the last party; the table can't be seated until bussed. */
+  dirty: number;
+}
+
+export interface DishPitSlot {
+  /** Dirty plates waiting to be washed. */
+  dirty: number;
+  /** Bus tasks bringing dishes here. */
+  incoming: Id[];
 }
 
 export interface PassSlot {
@@ -89,6 +98,7 @@ export interface PlacedObject {
   counter?: CounterSlot;
   table?: TableSlot;
   pass?: PassSlot;
+  dishPit?: DishPitSlot;
 }
 
 // ---------------------------------------------------------------------------
@@ -157,7 +167,7 @@ export interface Crate {
 // ---------------------------------------------------------------------------
 // Tasks
 
-export type TaskKind = 'deliver' | 'prep' | 'tend' | 'carryBatch' | 'takeOrder' | 'plate' | 'serve';
+export type TaskKind = 'deliver' | 'prep' | 'tend' | 'carryBatch' | 'takeOrder' | 'plate' | 'serve' | 'bus' | 'wash';
 export type TaskStatus = 'blocked' | 'ready' | 'claimed';
 
 export interface Task {
@@ -173,6 +183,10 @@ export interface Task {
   crateId: Id | null;
   partyId: Id | null;
   customerId: Id | null;
+  /** Bus: the dirty table. Wash: the dish pit. */
+  objectId: Id | null;
+  /** Plate tasks: holds a clean plate taken from the rack on claim, not yet used. */
+  plate: boolean;
   /** Resolved on claim: where the item comes from / goes to. */
   sourceId: Id | null;
   targetId: Id | null;
@@ -208,7 +222,12 @@ export interface SkillState {
 }
 
 /** A plate's id is the guest it is for. */
-export type Carry = { kind: 'crate'; id: Id } | { kind: 'pot'; id: Id } | { kind: 'plate'; id: Id };
+export type Carry =
+  | { kind: 'crate'; id: Id }
+  | { kind: 'pot'; id: Id }
+  | { kind: 'plate'; id: Id }
+  /** A stack of dirty plates; `id` is the dish pit they're headed for. */
+  | { kind: 'dishes'; id: Id; n: number };
 
 export type Activity = 'idle' | 'walking' | 'working' | 'blocked';
 
@@ -303,6 +322,7 @@ export interface Stats {
   wagesPaid: number;
   customersServed: number;
   customersLost: number;
+  platesBroken: number;
   /** Seconds agents spent blocked, per tile index (blocking heatmap). */
   blockedByTile: Record<number, number>;
   /** Steps taken onto each tile (walking heatmap). */
@@ -332,6 +352,8 @@ export interface GameState {
   heat: number;
   /** Seconds until the next party arrives (while open). */
   nextPartyIn: number;
+  /** Plates owned (on the rack, in use or dirty) and how many are clean on the rack. */
+  plates: { clean: number; total: number };
   unlockedRecipes: string[];
   /** Reputation in stars, 1–5 (continuous). */
   reputation: number;

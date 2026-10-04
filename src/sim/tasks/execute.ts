@@ -5,6 +5,7 @@ import { recipe } from '../../data/recipes';
 import { stationDef } from '../../data/stations';
 import { DROP_TIME, LOAD_TIME, LOAD_XP, PICKUP_TIME } from '../constants';
 import { tidyCounter } from '../counters/counters';
+import { runBus, runWash } from '../foh/dishes';
 import { runPlate, runServe, runTakeOrder } from '../foh/service';
 import { workTile } from '../grid/grid';
 import { onCrateLoaded, readyBatchQuality } from '../production/batches';
@@ -178,6 +179,10 @@ function runOnce(state: GameState, emp: Employee, t: Task, dt: number): Outcome 
       return runPlate(state, emp, t, dt);
     case 'serve':
       return runServe(state, emp, t, dt);
+    case 'bus':
+      return runBus(state, emp, t, dt);
+    case 'wash':
+      return runWash(state, emp, t, dt);
   }
 }
 
@@ -188,6 +193,7 @@ function taskStillValid(state: GameState, t: Task): boolean {
   const party = t.partyId ? state.parties[t.partyId] : null;
   if (t.partyId && (!party || party.phase === 'leaving')) return false;
   if (t.customerId && !state.customers[t.customerId]) return false;
+  if (t.objectId && !state.objects[t.objectId]) return false;
   return true;
 }
 

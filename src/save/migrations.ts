@@ -1,3 +1,5 @@
+import { placeNear } from '../sim/build/build';
+import { START_PLATES } from '../sim/constants';
 import { STATE_VERSION } from '../sim/newGame';
 
 /**
@@ -47,6 +49,24 @@ export const MIGRATIONS: Record<number, Migration> = {
       if (o.type === 'couch' || o.type === 'coffeeMachine') delete s.objects[id];
     }
     s.layoutVersion++;
+    return s;
+  },
+  // v5: dirty tables, bussing, dish pit and the clean-plate stock.
+  4: (s) => {
+    s.plates ??= { clean: START_PLATES, total: START_PLATES };
+    s.stats.platesBroken ??= 0;
+    for (const o of Object.values<any>(s.objects)) if (o.table) o.table.dirty ??= 0;
+    for (const t of Object.values<any>(s.tasks)) {
+      t.objectId ??= null;
+      t.plate ??= false;
+    }
+    s.layoutVersion++;
+    // Older restaurants get a free dish pit near the pass.
+    if (!Object.values<any>(s.objects).some((o) => o.type === 'dishPit')) {
+      const pass = Object.values<any>(s.objects).find((o) => o.type === 'pass');
+      const near = pass ?? { x: Math.floor(s.grid.width / 2), y: Math.floor(s.grid.height / 2) };
+      placeNear(s, 'dishPit', { x: near.x, y: near.y });
+    }
     return s;
   },
 };

@@ -86,11 +86,16 @@ function rollDrops(state: GameState, emp: Employee, dt: number): void {
   if (!emp.carrying || emp.activity !== 'walking') return;
   const p = traitDropChance(emp);
   if (p <= 0 || rand(state) >= (p * dt) / AVG_CARRY_SECONDS) return;
+  const c = emp.carrying;
   const what =
-    emp.carrying.kind === 'crate'
-      ? `a crate of ${INGREDIENTS[state.crates[emp.carrying.id]?.ingredient]?.name.toLowerCase() ?? 'food'}`
-      : 'a pot';
-  abandonTask(state, emp);
+    c.kind === 'crate'
+      ? `a crate of ${INGREDIENTS[state.crates[c.id]?.ingredient]?.name.toLowerCase() ?? 'food'}`
+      : c.kind === 'pot'
+        ? 'a pot'
+        : c.kind === 'plate'
+          ? 'a plate'
+          : `a stack of ${c.n} dishes`;
+  abandonTask(state, emp, true);
   message(state, `${emp.name} dropped ${what}!`, 'warn');
 }
 

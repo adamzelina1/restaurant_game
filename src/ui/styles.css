@@ -583,3 +583,7 @@ select.preset {
 .hud-guests {
   color: var(--muted);
 }
+.btn.hud-plates.warn {
+  border-color: #e06666;
+  color: #e06666;
+}

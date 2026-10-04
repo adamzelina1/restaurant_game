@@ -50,6 +50,16 @@ export function Hud({ runner }: { runner: GameRunner }) {
       <div class="hud-guests" title="Guests inside">
         🧑 {Object.keys(s.customers).length}
       </div>
+      <button
+        class={`btn small hud-plates ${s.plates.clean === 0 ? 'warn' : ''}`}
+        title="Clean plates on the rack / plates owned. Click to show the dish pit."
+        onClick={() => {
+          const pit = Object.values(s.objects).find((o) => o.dishPit);
+          if (pit) ui.set({ selected: { kind: 'object', id: pit.id } });
+        }}
+      >
+        🍽 {s.plates.clean}/{s.plates.total}
+      </button>
       <div class="hud-stock">
         {dishes.map(([id, n]) => (
           <span class="chip" title={recipe(id).name}>
@@ -89,7 +99,7 @@ export function Hud({ runner }: { runner: GameRunner }) {
         Hire
       </button>
       <div class="hud-sold" title="Servings sold">
-        🍽 {s.stats.servingsSold}
+        Sold {s.stats.servingsSold}
       </div>
       <button class="btn" onClick={() => ui.set({ menuOpen: !ui.state.menuOpen })}>
         ☰

@@ -1,4 +1,5 @@
 import { buyObject, moveObject, paintTiles, sellObject, type FloorTool } from './build/build';
+import { buyPlates } from './foh/dishes';
 import type { Tile } from './grid/grid';
 import { cancelBatch, requestServe, startBatch } from './production/batches';
 import { fire, hire, paidRefresh, presetPriorities, setPriority } from './staff/hiring';
@@ -22,7 +23,8 @@ export type Command =
   | { type: 'moveObject'; id: Id; x: number; y: number; rot: Rot }
   | { type: 'sellObject'; id: Id }
   | { type: 'paintFloor'; tiles: Tile[]; tool: FloorTool }
-  | { type: 'resetHeatmaps' };
+  | { type: 'resetHeatmaps' }
+  | { type: 'buyPlates' };
 
 export function applyCommand(state: GameState, cmd: Command): boolean {
   switch (cmd.type) {
@@ -53,6 +55,8 @@ export function applyCommand(state: GameState, cmd: Command): boolean {
       return sellObject(state, cmd.id);
     case 'paintFloor':
       return paintTiles(state, cmd.tiles, cmd.tool);
+    case 'buyPlates':
+      return buyPlates(state);
     case 'resetHeatmaps':
       state.stats.blockedByTile = {};
       state.stats.trafficByTile = {};

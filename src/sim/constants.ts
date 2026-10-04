@@ -84,3 +84,17 @@ export const DECOR_BONUS = 0.03;
 export const DECOR_MAX = 0.1;
 /** Quality added by a level-20 plater. */
 export const PLATING_BONUS_MAX = 0.1;
+
+// Dishes (PLAN §6, FOH phase 2)
+/** Plates a new restaurant owns. */
+export const START_PLATES = 24;
+export const PLATE_PACK = 10;
+export const PLATE_PACK_COST = 25;
+/** Clearing a table: base seconds plus seconds per plate. */
+export const BUS_TIME_BASE = 2;
+export const BUS_TIME_PER_PLATE = 0.75;
+export const CARRY_DISHES_SPEED = 0.85;
+/** Seconds to wash one plate at a tier-1 dish pit. */
+export const WASH_TIME = 3;
+/** Plates washed per Dishes task before the washer re-picks work. */
+export const WASH_CHUNK = 8;

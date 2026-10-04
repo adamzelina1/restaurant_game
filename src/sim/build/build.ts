@@ -4,6 +4,7 @@ import { FLOOR_COSTS, SELL_REFUND } from '../../data/build';
 import { stationDef } from '../../data/stations';
 import { footprint, inBounds, isFloor, seatTiles, workTiles, type Tile } from '../grid/grid';
 import { placeObject } from '../newGame';
+import { validateLayout } from './analysis';
 import { Floor, type GameState, type Id, type PlacedObject, type Rot } from '../state';
 import { message, spend, values } from '../util';
 
@@ -69,6 +70,7 @@ export function busyReason(_state: GameState, o: PlacedObject): string | null {
   if (o.cook?.batchId) return 'It has a batch in progress';
   if (o.prep && (o.prep.crateId || o.prep.reservedBy)) return 'A crate is on it';
   if (o.counter && (o.counter.incoming.length > 0 || o.counter.lots.length > 0)) return 'It still holds food';
+  if (o.dishPit && (o.dishPit.dirty > 0 || o.dishPit.incoming.length > 0)) return 'Dirty dishes are in it';
   return null;
 }
 
@@ -117,9 +119,31 @@ export function sellObject(state: GameState, id: Id): boolean {
   }
   const refund = Math.floor(stationDef(o.type).cost * SELL_REFUND);
   state.money += refund;
+  // Dirty plates on a sold table are rinsed and kept.
+  if (o.table) state.plates.clean += o.table.dirty;
   delete state.objects[id];
   state.layoutVersion++;
   return true;
+}
+
+/**
+ * Place a free object at the valid spot nearest `near` that keeps the layout
+ * valid (used to give old saves objects that newer versions need).
+ */
+export function placeNear(state: GameState, type: string, near: Tile): PlacedObject | null {
+  const spots: Tile[] = [];
+  for (let y = 0; y < state.grid.height; y++) for (let x = 0; x < state.grid.width; x++) spots.push({ x, y });
+  spots.sort((a, b) => Math.hypot(a.x - near.x, a.y - near.y) - Math.hypot(b.x - near.x, b.y - near.y));
+  for (const t of spots) {
+    for (const rot of [0, 1, 2, 3] as Rot[]) {
+      if (placementError(state, type, t.x, t.y, rot)) continue;
+      const o = placeObject(state, { type, x: t.x, y: t.y, rot });
+      if (validateLayout(state).length === 0) return o;
+      delete state.objects[o.id];
+      state.layoutVersion++;
+    }
+  }
+  return null;
 }
 
 /** Floor: buy floor on empty lot or knock down a wall. Wall: build a wall. */

@@ -137,6 +137,7 @@ export function runPlate(state: GameState, emp: Employee, t: Task, dt: number): 
       const q = takeServingFrom(state, counter);
       if (q === null) return { r: 'fail' };
       c.plate = { quality: q, at: 'carried', passId: null };
+      t.plate = false;
       emp.carrying = { kind: 'plate', id: c.id };
       return { r };
     }

@@ -8,6 +8,7 @@ import { tickHiring } from './staff/hiring';
 import type { GameState } from './state';
 import { coolHeat } from './stations/stations';
 import { customerAgents, customersAfterMove, customersDecide, tickArrivals } from './foh/customers';
+import { generateDishTasks } from './foh/dishes';
 import { refreshTasks } from './tasks/tasks';
 
 /**
@@ -20,6 +21,7 @@ export function step(state: GameState, commands: readonly Command[] = []): void 
 
   tickArrivals(state, dt);
   customersDecide(state, dt);
+  generateDishTasks(state);
   refreshTasks(state);
   employeesDecide(state, dt);
   // Staff and guests share one blocking pass so they block each other (PLAN §6).

@@ -363,6 +363,19 @@ export class WorldScene extends Phaser.Scene {
         });
       }
 
+      if (obj.table && obj.table.dirty > 0) {
+        // Dirty plates left behind, waiting for a busser.
+        for (let i = 0; i < obj.table.dirty; i++) {
+          this.drawDirtyPlate(g, cx - 8 + (i % 3) * 8, cy - 4 + Math.floor(i / 3) * 7);
+        }
+      }
+
+      if (obj.dishPit && obj.dishPit.dirty > 0) {
+        const n = obj.dishPit.dirty;
+        for (let i = 0; i < Math.min(n, 6); i++) this.drawDirtyPlate(g, cx - 5 + (i % 2) * 10, cy + 6 - Math.floor(i / 2) * 4);
+        this.label(`pit:${obj.id}`, cx, cy - 18, String(n), { backgroundColor: '#000000aa', padding: { x: 2, y: 1 } });
+      }
+
       if (obj.counter) {
         const stock = counterStock(obj);
         const rid = obj.counter.recipeId;
@@ -444,6 +457,15 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
+  private drawDirtyPlate(g: Phaser.GameObjects.Graphics, x: number, y: number): void {
+    g.fillStyle(0xd9d9d9, 1);
+    g.fillCircle(x, y, 4);
+    g.lineStyle(1, 0x666666, 0.8);
+    g.strokeCircle(x, y, 4);
+    g.fillStyle(0x7f6000, 0.6);
+    g.fillCircle(x + 1, y - 1, 1.5);
+  }
+
   private drawCrate(g: Phaser.GameObjects.Graphics, x: number, y: number, ingredient: string, prepped: boolean): void {
     const color = INGREDIENTS[ingredient]?.color ?? 0xcccccc;
     g.fillStyle(0x7f6000, 1);
@@ -504,6 +526,8 @@ export class WorldScene extends Phaser.Scene {
         if (b) this.drawPot(g, x + 9, y - 6, b.recipeId);
       } else if (e.carrying?.kind === 'plate') {
         this.drawPlate(g, x + 9, y - 6, s.customers[e.carrying.id]?.dish ?? null);
+      } else if (e.carrying?.kind === 'dishes') {
+        for (let i = 0; i < Math.min(e.carrying.n, 4); i++) this.drawDirtyPlate(g, x + 9, y - 4 - i * 3);
       }
       this.label(`emp:${e.id}`, x, y - 18, e.name, { fontSize: '9px', backgroundColor: '#00000088', padding: { x: 2, y: 0 } }).setDepth(8);
     }

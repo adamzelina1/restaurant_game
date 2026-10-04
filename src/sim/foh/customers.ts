@@ -25,6 +25,7 @@ import { reputationTrafficMult, rateVisit } from '../reputation/reputation';
 import { pick, randRange, weightedPick } from '../rng';
 import { traitTipMult } from '../staff/traits';
 import type { Customer, GameState, Party, PlacedObject } from '../state';
+import { discardPlates } from './dishes';
 import { abandonTask, createTask, deleteTask } from '../tasks/tasks';
 import { clamp, message, newId, values } from '../util';
 
@@ -135,7 +136,7 @@ function findTable(state: GameState, p: Party): PlacedObject | null {
   let best: PlacedObject | null = null;
   let bestKey = Infinity;
   for (const o of objectsOfKind(state, 'table')) {
-    if (o.table!.partyId) continue;
+    if (o.table!.partyId || o.table!.dirty > 0) continue;
     const seats = seatTiles(o);
     if (seats.length < p.size) continue;
     if (!seats.slice(0, p.size).every((s) => Number.isFinite(distance(state, from.x, from.y, s.x, s.y)))) continue;
@@ -212,12 +213,19 @@ function startLeaving(state: GameState, p: Party): void {
   p.phaseTime = 0;
   const t = p.tableId ? state.objects[p.tableId] : null;
   if (t?.table?.partyId === p.id) t.table.partyId = null;
+  // Their plates stay behind: the table is dirty until it's bussed (PLAN §6).
+  for (const id of p.members) {
+    const c = state.customers[id];
+    if (c?.plate?.at !== 'table') continue;
+    c.plate = null;
+    if (t?.table) t.table.dirty++;
+    else discardPlates(state, 1);
+  }
 }
 
 /** Patience ran out: everyone leaves, unhappy (PLAN §6). */
 function leaveAngry(state: GameState, p: Party, why: string): void {
   p.angry = true;
-  startLeaving(state, p);
   for (const id of p.members) {
     const c = state.customers[id];
     if (!c) continue;
@@ -229,6 +237,9 @@ function leaveAngry(state: GameState, p: Party, why: string): void {
     if (c.plate?.passId) {
       const pass = state.objects[c.plate.passId];
       if (pass?.pass) pass.pass.plates = pass.pass.plates.filter((x) => x !== c.id);
+      // The food is scraped and the plate goes to the dish pit.
+      c.plate = null;
+      discardPlates(state, 1);
     }
     c.satisfaction = 0;
     rateVisit(state, 0);
@@ -236,6 +247,8 @@ function leaveAngry(state: GameState, p: Party, why: string): void {
   }
   state.stats.customersLost += p.toSpawn;
   p.toSpawn = 0;
+  // Plates already on the table are left dirty; carried ones are dealt with below.
+  startLeaving(state, p);
   for (const t of values(state.tasks)) {
     if (t.partyId !== p.id && !(t.customerId && p.members.includes(t.customerId))) continue;
     const e = t.claimedBy ? state.employees[t.claimedBy] : null;
