@@ -1,0 +1,392 @@
+:root {
+  --bg: #15171b;
+  --panel: rgba(28, 31, 37, 0.94);
+  --panel-border: #3a3f49;
+  --text: #e8e8e8;
+  --muted: #9aa0aa;
+  --accent: #f6b26b;
+  --good: #93c47d;
+  --warn: #e06666;
+  --blue: #6fa8dc;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  color: var(--text);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+#game {
+  position: fixed;
+  inset: 0;
+}
+
+#ui {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+#ui > * {
+  pointer-events: auto;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+h2,
+h3,
+h4 {
+  margin: 0;
+}
+h2 {
+  font-size: 16px;
+}
+h3 {
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+h4 {
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 12px 0 6px;
+}
+
+p {
+  margin: 6px 0;
+}
+
+.muted {
+  color: var(--muted);
+}
+.warn {
+  color: var(--warn);
+}
+.hint {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 10px;
+}
+
+/* Buttons */
+.btn {
+  background: #2c313a;
+  color: var(--text);
+  border: 1px solid #454b57;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+.btn:hover:not(:disabled) {
+  background: #363c47;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.btn.small {
+  padding: 2px 7px;
+  font-size: 12px;
+}
+.btn.primary {
+  background: #7a4f1e;
+  border-color: #b8783a;
+}
+.btn.primary:hover:not(:disabled) {
+  background: #8d5c24;
+}
+.btn.danger {
+  background: #5a2626;
+  border-color: #8a3a3a;
+}
+.btn.active {
+  background: #4a5a73;
+  border-color: var(--blue);
+}
+
+/* HUD */
+.hud {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 10px;
+  flex-wrap: wrap;
+}
+.hud-money {
+  font-size: 18px;
+  font-weight: 700;
+  color: #ffd966;
+  min-width: 80px;
+}
+.hud-clock {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.hud-speeds {
+  display: flex;
+  gap: 2px;
+}
+.hud-heat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+.hud-heat .meter {
+  width: 70px;
+}
+.hud-open {
+  font-weight: 700;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #3a2a2a;
+  color: var(--warn);
+}
+.hud-open.is-open {
+  background: #24361f;
+  color: var(--good);
+}
+.hud-stock {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.hud-spacer {
+  flex: 1;
+}
+.chip {
+  background: #2c313a;
+  border-radius: 10px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+
+.dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 5px;
+  border: 1px solid rgba(0, 0, 0, 0.5);
+  vertical-align: baseline;
+}
+.dot.big {
+  width: 14px;
+  height: 14px;
+}
+
+.meter {
+  height: 7px;
+  background: #0d0e11;
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 4px 0;
+}
+.meter-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.1s linear;
+}
+.meter-fill.heat {
+  background: linear-gradient(90deg, #f6b26b, #e06666);
+}
+
+/* Side panel */
+.side {
+  position: absolute;
+  top: 64px;
+  right: 8px;
+  width: 300px;
+  max-height: calc(100% - 80px);
+  overflow-y: auto;
+  padding: 10px 12px;
+}
+.modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+ul.crates {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+  font-size: 12px;
+}
+ul.crates li {
+  padding: 1px 0;
+}
+.skills {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.skills td {
+  padding: 1px 4px 1px 0;
+}
+.skills .num {
+  text-align: right;
+  width: 22px;
+  font-variant-numeric: tabular-nums;
+}
+.skills .flames {
+  width: 34px;
+  font-size: 10px;
+}
+.skills .wide {
+  width: 45%;
+}
+.prio-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.prio {
+  background: #2c313a;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 12px;
+}
+.timebar {
+  display: flex;
+  height: 10px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #0d0e11;
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+/* Modal */
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal {
+  padding: 14px 16px;
+  max-width: min(860px, calc(100% - 32px));
+  max-height: calc(100% - 32px);
+  overflow: auto;
+}
+.modal.narrow {
+  width: 360px;
+}
+table.recipes {
+  border-collapse: collapse;
+  width: 100%;
+}
+table.recipes th {
+  text-align: left;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--panel-border);
+}
+table.recipes td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #2a2e36;
+  white-space: nowrap;
+}
+table.recipes tr.disabled td {
+  color: var(--muted);
+}
+.tag {
+  margin-left: 6px;
+  font-size: 10px;
+  padding: 0 5px;
+  border-radius: 3px;
+  background: #4a3a1e;
+  color: var(--accent);
+}
+.menu-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.savebox {
+  width: 100%;
+  height: 120px;
+  background: #0d0e11;
+  color: var(--text);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  font-family: monospace;
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+
+/* Toasts */
+.messages {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: none !important;
+}
+.toast {
+  background: var(--panel);
+  border-left: 3px solid var(--blue);
+  padding: 5px 10px;
+  border-radius: 4px;
+  max-width: 420px;
+}
+.toast.good {
+  border-left-color: var(--good);
+}
+.toast.warn {
+  border-left-color: var(--warn);
+}
+
+.paused-banner {
+  position: absolute;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.6);
+  padding: 4px 14px;
+  border-radius: 6px;
+  letter-spacing: 0.2em;
+  font-weight: 700;
+  pointer-events: none !important;
+}

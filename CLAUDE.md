@@ -15,3 +15,11 @@ Build in milestone order (PLAN.md §12), starting at M0.
   they never mutate state directly.
 - Game content (recipes, stations, traits, work types, equipment) lives in `src/data/`.
 - Use the seeded RNG stored in state; never `Math.random()` inside the sim.
+
+## Commands
+
+- `npm run dev`: dev server on http://localhost:5173 (dev builds show 4×–64× speed buttons; `window.game` is the runner)
+- `npm test`: Vitest (sim tests + an architecture guard for `src/sim`)
+- `npm run typecheck`, `npm run build`
+- `npm run headless -- balance [hours] [short|long|best]`: bot-played balance report
+- `npm run headless -- stress [trials]`: blocking/deadlock stress test; `-- bench`: ticks/s
