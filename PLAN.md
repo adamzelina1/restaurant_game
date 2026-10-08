@@ -17,7 +17,7 @@ A browser restaurant-management idle game: **ChefVille meets RimWorld**.
 ## 0. Implementation status (handoff)
 
 **Read this first if you're picking the project up.** Milestones M0–M8 are built
-and tested (M6–M8 committed locally, not yet pushed). M9 (polish) is in progress.
+and tested (M6 onward committed locally, not yet pushed). M9 (polish) is mostly done.
 
 **M6–M8 summary:** dirty tables → Bus → dish pit → Dishes → clean-plate rack
 (`src/sim/foh/dishes.ts`); recipe unlocks, mastery stars, equipment tiers
@@ -27,11 +27,24 @@ welcome-back report, tab badge, opt-in notifications (`src/ui/notify.ts`).
 Save format v7. `npm run headless -- offline` compares the offline model to the
 tick sim; `balance` now defaults to a demand-aware `smart` bot.
 
-**M9 so far:** reputation retuned (stars now hinge on food quality:
-`starsFor` in `reputation.ts`, `REP_RATE` 0.01); 24h smart run reaches ~2.9★
-with 5/6 recipes. **M9 left:** sound, juice (+$ floats), art pass (sprite keys),
-HUD overlapping the top kitchen row / wrapping on narrow windows, further tuning
-(income is demand-capped ~170 guests/h; staff mostly idle late game).
+**M9 done:** reputation retuned (stars hinge on food quality: `starsFor` in
+`reputation.ts`, `REP_RATE` 0.01). HUD measures itself (`ui.state.hudBottom`,
+CSS `--hud-bottom`); the camera frames the built floor below it and refits on
+resize until the player pans/zooms (Home refits); icon-only HUD under 1400px.
+Juice + sound: `src/render/events.ts` diffs state per frame into render events
+(pay, ready, restock, level-up, mastery, unlock, upgrade, angry) feeding tweened
+popups/bursts in `WorldScene` and a WebAudio synth (`src/ui/sound.ts`, mute in
+localStorage). Art: `StationDef.sprite` keys; procedural drawers in
+`src/render/sprites.ts`; a loaded Phaser texture with the same key replaces the
+drawer (asset packs = data change, none downloaded). Balance: the smart bot also
+places decor; a 24h run reaches ~3.5 stars with all 6 recipes, ~$1.4k/h
+operating profit by hour 48.
+
+**M9 left (needs design decisions, see §13 Q8):** late game has no money sink
+(cash piles up from ~hour 28), reputation plateaus ~3.5 stars, demand is capped
+by flat traffic (~190 guests/h), staff are 25–50% idle. The coarse offline model
+still rates guests ~0.4 stars low over 4h: offline, staff only do FOH work so
+waits are shorter than the online rolling average it reuses.
 
 ### Done
 
@@ -71,10 +84,8 @@ stress test, ticks/s). See CLAUDE.md for commands.
    tip/quality), which aren't tracked yet. Welcome-back report, tab-title badge +
    optional browser notification when a batch is READY. Save migrations and
    export/import already exist.
-4. **M9 – Polish:** art pass (sprite keys are not data-driven yet; everything is
-   drawn with Phaser Graphics in `WorldScene.ts`), sound, juice, balance tuning
-   with the headless runner (all numbers in `src/sim/constants.ts` and
-   `src/data/*` are first guesses), and UI polish (the HUD wraps on narrow windows).
+4. **M9 – Polish:** HUD, juice, sound, art pass and balance tooling are done
+   (see above). Remaining: late-game tuning, which needs the design calls in §13 Q8.
 
 ### Deviations from the original plan (intentional, keep unless asked)
 
@@ -99,6 +110,12 @@ stress test, ticks/s). See CLAUDE.md for commands.
   needs a migration in `src/save/migrations.ts` and a test in `tests/save.test.ts`.
 - On this Windows machine, bash heredocs with non-ASCII characters fail; write
   scripts to files instead.
+- When the browser pane is hidden, Phaser never boots (0×0 container) or stops
+  updating. Take a screenshot to wake it, then drive frames with
+  `window.phaser.step(t, 16)` (dev builds expose `window.phaser`); that runs the
+  scene, the event watcher and popups, unlike `window.game.frame(t)`.
+- Render-side popups and sounds come only from `EventWatcher` diffs; never add
+  event queues to `GameState` for them.
 
 ---
 
@@ -729,7 +746,7 @@ hour.
 | M6 | FOH phase 2: dirty tables, Bus + Dishes, dish pit, clean-plate stock | Second logistics puzzle | ✅ done |
 | M7 | Progression: recipe book unlocks, recipe mastery stars, equipment tiers, star-gated unlocks | Long-term goals | ✅ done |
 | M8 | Offline catch-up model, welcome-back report, ready notifications (save migrations and export/import already done) | True idle game | ✅ done |
-| M9 | Art pass, sound, juice, headless balance runs, tuning | Release candidate | in progress |
+| M9 | Art pass, sound, juice, headless balance runs, tuning | Release candidate | 🟡 polish done; late-game tuning pending §13 Q8 |
 
 The headless runner (`tools/headless.ts`) was built in M2. It:
 
@@ -744,3 +761,10 @@ The headless runner (`tools/headless.ts`) was built in M2. It:
 
 - **Q7:** Name and theme (generic diner, Italian trattoria, multi-cuisine that
   unlocks over time).
+- **Q8 (late game, from M9 balance runs):** after ~28h of play cash piles up with
+  nothing to buy, reputation stalls near 3.5 stars and staff are 25–50% idle,
+  because flat traffic caps demand. Options: (a) a new money sink that raises
+  demand (e.g. advertising or a bigger dining room that only pays off with more
+  traffic), (b) steeper star scaling of traffic (`reputationTrafficMult`) so
+  reaching 4–5 stars pays, (c) more and pricier late recipes, (d) more equipment
+  tiers or decor types as reputation sinks. Not decided; ask before implementing.
