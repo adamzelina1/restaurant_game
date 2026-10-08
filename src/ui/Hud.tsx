@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { GameRunner } from '../game/runner';
 import { HEAT_MAX } from '../sim/constants';
 import { stockByRecipe } from '../sim/counters/counters';
@@ -8,6 +8,7 @@ import { recipe } from '../data/recipes';
 import { formatClock, formatMoney, hex } from './format';
 import { enterBuild, exitBuild } from './buildActions';
 import { ui, type Overlay } from './store';
+import { isMuted, onMuteChange, setMuted } from './sound';
 
 const OVERLAYS: { id: Overlay; label: string; title: string }[] = [
   {
@@ -43,9 +44,21 @@ function useHudBottom() {
   return ref;
 }
 
+/** A counter that ticks up whenever money goes up, to replay the HUD's bump animation. */
+function useMoneyBump(money: number): number {
+  const prev = useRef(money);
+  const n = useRef(0);
+  if (money > prev.current + 0.005) n.current++;
+  prev.current = money;
+  return n.current;
+}
+
 export function Hud({ runner }: { runner: GameRunner }) {
   const ref = useHudBottom();
   const s = runner.state;
+  const bump = useMoneyBump(s.money);
+  const [muted, setMutedState] = useState(isMuted());
+  useEffect(() => onMuteChange(() => setMutedState(isMuted())), []);
   const stock = stockByRecipe(s);
   const dishes = Object.entries(stock).filter(([, n]) => n > 0);
   const open = isOpen(s);
@@ -53,7 +66,7 @@ export function Hud({ runner }: { runner: GameRunner }) {
   return (
     <div class="hud panel" ref={ref}>
       <div class="hud-group">
-        <div class="hud-money" data-money>
+        <div class="hud-money" key={bump} data-bump={bump > 0 ? '' : undefined}>
           {formatMoney(s.money)}
         </div>
         <div class="hud-clock">{formatClock(s.time)}</div>
@@ -137,6 +150,9 @@ export function Hud({ runner }: { runner: GameRunner }) {
         </button>
         <button class="btn" onClick={() => ui.set({ modal: 'recipes' })} title="Unlock recipes and track mastery">
           📖<span class="lbl"> Recipes</span>
+        </button>
+        <button class="btn" onClick={() => setMuted(!muted)} title={muted ? 'Sound off (click to unmute)' : 'Sound on (click to mute)'}>
+          {muted ? '🔇' : '🔊'}
         </button>
         <button class="btn" onClick={() => ui.set({ menuOpen: !ui.state.menuOpen })} title="Menu">
           ☰

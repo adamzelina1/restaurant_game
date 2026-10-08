@@ -11,8 +11,10 @@ import { Floor, type GameState, type Mover, type PlacedObject } from '../sim/sta
 import { patienceUsed } from '../sim/foh/customers';
 import { clickObject } from '../ui/actions';
 import { BuildController } from './BuildMode';
-import { formatDuration } from '../ui/format';
+import { EventWatcher, type GameEvent } from './events';
+import { formatDuration, formatMoney } from '../ui/format';
 import { ui } from '../ui/store';
+import { play } from '../ui/sound';
 
 export const TILE = 32;
 
@@ -31,7 +33,23 @@ const TEXT_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
 interface FloatText {
   text: Phaser.GameObjects.Text;
   born: number;
+  /** Seconds on screen. */
+  life: number;
+  y0: number;
+  /** Pixels risen over its life. */
+  rise: number;
 }
+
+/** An expanding ring (a batch just finished, a station was upgraded). */
+interface Burst {
+  x: number;
+  y: number;
+  born: number;
+  color: number;
+}
+
+/** Popups on screen at once; older ones are dropped first at high game speeds. */
+const MAX_FLOATS = 40;
 
 export class WorldScene extends Phaser.Scene {
   private runner: GameRunner;
@@ -49,6 +67,8 @@ export class WorldScene extends Phaser.Scene {
   private texts = new Map<string, Phaser.GameObjects.Text>();
   private usedTexts = new Set<string>();
   private floats: FloatText[] = [];
+  private bursts: Burst[] = [];
+  private watcher = new EventWatcher();
   private keys!: Record<'W' | 'A' | 'S' | 'D' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT', Phaser.Input.Keyboard.Key>;
   private drag: { x: number; y: number; sx: number; sy: number; moved: boolean } | null = null;
   private hoverTile: { x: number; y: number } | null = null;
@@ -190,15 +210,65 @@ export class WorldScene extends Phaser.Scene {
     if (r === 'serve') this.floatText(wp.x, wp.y - 8, 'Serving!', '#93c47d');
   }
 
-  floatText(x: number, y: number, str: string, color: string): void {
-    const t = this.add.text(x, y, str, { ...TEXT_STYLE, fontSize: '12px', color, fontStyle: 'bold' });
-    t.setOrigin(0.5).setDepth(10);
-    this.floats.push({ text: t, born: this.time.now });
+  floatText(x: number, y: number, str: string, color: string, opts: { size?: number; life?: number; rise?: number } = {}): void {
+    const size = opts.size ?? 12;
+    const t = this.add.text(x, y, str, { ...TEXT_STYLE, fontSize: `${size}px`, color, fontStyle: 'bold', stroke: '#000000', strokeThickness: 3 });
+    t.setOrigin(0.5).setDepth(10).setScale(0.4);
+    this.tweens.add({ targets: t, scale: 1, duration: 180, ease: 'Back.Out' });
+    this.floats.push({ text: t, born: this.time.now, life: opts.life ?? 1.1, y0: y, rise: opts.rise ?? 26 });
+    while (this.floats.length > MAX_FLOATS) this.floats.shift()!.text.destroy();
+  }
+
+  private burst(x: number, y: number, color: number): void {
+    this.bursts.push({ x, y, born: this.time.now, color });
+  }
+
+  /** Sounds and popups for what changed since the last frame. */
+  private react(events: GameEvent[]): void {
+    const s = this.runner.state;
+    for (const ev of events) {
+      switch (ev.kind) {
+        case 'pay':
+          this.floatText(ev.x * TILE, ev.y * TILE - 10, `+${formatMoney(Math.round(ev.amount))}`, '#ffd966', { size: 13 });
+          play('cash');
+          break;
+        case 'ready':
+          this.burst(ev.x * TILE, ev.y * TILE, 0x93c47d);
+          play('ding');
+          break;
+        case 'stocked':
+          this.floatText(ev.x * TILE, ev.y * TILE - 12, `+${ev.n}`, '#93c47d');
+          play('stock');
+          break;
+        case 'levelUp': {
+          const e = s.employees[ev.employeeId];
+          if (!e) break;
+          const p = this.agentPos(e);
+          this.floatText(p.x, p.y - 26, `${ev.skill} ${ev.level}!`, '#6fa8dc', { size: 12, life: 1.8, rise: 18 });
+          play('levelUp');
+          break;
+        }
+        case 'upgrade':
+          this.burst(ev.x * TILE, ev.y * TILE, 0xffd966);
+          this.floatText(ev.x * TILE, ev.y * TILE - 14, `Tier ${ev.tier}!`, '#ffd966', { size: 14, life: 1.6 });
+          play('fanfare');
+          break;
+        case 'mastery':
+        case 'unlock':
+          play('fanfare');
+          break;
+        case 'angry':
+          this.floatText(ev.x * TILE, ev.y * TILE - 14, '💢', '#e06666', { size: 14 });
+          play('bad');
+          break;
+      }
+    }
   }
 
   update(_time: number, delta: number): void {
     this.runner.frame(performance.now());
     const s = this.runner.state;
+    this.react(this.watcher.poll(s));
     this.panWithKeys(delta);
     if (this.drawnLayout !== s.layoutVersion || this.drawnGrid !== s.grid || this.drawnBuild !== this.build.active) this.drawStatic(s);
     this.usedTexts.clear();
@@ -222,13 +292,22 @@ export class WorldScene extends Phaser.Scene {
   private updateFloats(): void {
     const now = this.time.now;
     this.floats = this.floats.filter((f) => {
-      const age = (now - f.born) / 1000;
-      if (age > 0.9) {
+      const age = (now - f.born) / 1000 / f.life;
+      if (age > 1) {
         f.text.destroy();
         return false;
       }
-      f.text.y -= 0.6;
-      f.text.setAlpha(1 - age / 0.9);
+      // Ease out: rise quickly, then hang and fade.
+      f.text.y = f.y0 - f.rise * (1 - (1 - age) ** 3);
+      f.text.setAlpha(age < 0.6 ? 1 : 1 - (age - 0.6) / 0.4);
+      return true;
+    });
+    const g = this.topG;
+    this.bursts = this.bursts.filter((b) => {
+      const age = (now - b.born) / 600;
+      if (age > 1) return false;
+      g.lineStyle(3 * (1 - age), b.color, 1 - age);
+      g.strokeCircle(b.x, b.y, 10 + 26 * age);
       return true;
     });
   }

@@ -9,6 +9,7 @@ import { awayReport, awaySnapshot, type AwaySnapshot } from './sim/offline/repor
 import type { GameState } from './sim/state';
 import { App } from './ui/App';
 import { watchReady } from './ui/notify';
+import { installUiSounds } from './ui/sound';
 import { ui } from './ui/store';
 import './ui/styles.css';
 
@@ -36,6 +37,7 @@ function boot(): GameRunner {
 
 const runner = boot();
 watchReady(runner);
+installUiSounds();
 
 /** WebGL can't create a 0×0 framebuffer, so wait until the container has a size. */
 function whenSized(el: HTMLElement, cb: () => void): void {

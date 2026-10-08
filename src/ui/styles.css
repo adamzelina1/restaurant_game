@@ -141,6 +141,7 @@ p {
   white-space: nowrap;
 }
 .hud-money {
+  transform-origin: left center;
   font-size: 18px;
   font-weight: 700;
   color: #ffd966;
@@ -668,5 +669,19 @@ label.check {
   }
   .hud-speeds {
     display: none;
+  }
+}
+
+/* Money ticks up with a little bump (the element remounts on each gain). */
+.hud-money[data-bump] {
+  animation: money-bump 0.35s ease-out;
+}
+@keyframes money-bump {
+  0% {
+    transform: scale(1.18);
+    color: #fff2b3;
+  }
+  100% {
+    transform: scale(1);
   }
 }
