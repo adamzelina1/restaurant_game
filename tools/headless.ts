@@ -30,9 +30,15 @@ function balance(hours: number, strategy: Strategy): void {
   const every = Math.max(1, Math.round(hours / 12));
   console.log(`\n  hour    money  rep  staff recipes  served  lost  sold/h`);
   let lastSold = 0;
+  // Purchases (unlocks, upgrades, furniture, hires) vs running costs (ingredients).
+  let invested = 0;
+  const INVEST = new Set(['buyObject', 'upgradeObject', 'unlockRecipe', 'hire', 'buyPlates', 'refreshCandidates']);
   for (let i = 0; i < ticks; i++) {
     // The bot acts once per sim second, like a very attentive player.
-    step(s, i % TICK_RATE === 0 ? botCommands(s, strategy) : []);
+    const cmds = i % TICK_RATE === 0 ? botCommands(s, strategy) : [];
+    const spent0 = s.stats.spent;
+    step(s, cmds);
+    if (cmds.some((c) => INVEST.has(c.type))) invested += s.stats.spent - spent0;
     if ((i + 1) % (every * 3600 * TICK_RATE) === 0) {
       const h = (i + 1) / (3600 * TICK_RATE);
       console.log(
@@ -46,7 +52,12 @@ function balance(hours: number, strategy: Strategy): void {
   const income = s.stats.revenue + s.stats.tips;
   console.log(`\n=== Balance: ${hours} h, strategy "${strategy}" (${(ms / 1000).toFixed(1)} s real) ===`);
   console.log(`Money: $${Math.round(s.money)}  income $${Math.round(income)}  spent $${Math.round(s.stats.spent)}  wages $${Math.round(s.stats.wagesPaid)}`);
-  console.log(`Profit/hour: $${Math.round((income - s.stats.spent - s.stats.wagesPaid) / hours)}  servings sold: ${s.stats.servingsSold}  batches served: ${s.stats.batchesServed}`);
+  const running = s.stats.spent - invested;
+  console.log(`Invested $${Math.round(invested)} (unlocks, upgrades, furniture, hires)  ingredients $${Math.round(running)}`);
+  console.log(
+    `Operating profit/hour: $${Math.round((income - running - s.stats.wagesPaid) / hours)}  net/hour: $${Math.round((income - s.stats.spent - s.stats.wagesPaid) / hours)}  ` +
+      `servings sold: ${s.stats.servingsSold}  batches served: ${s.stats.batchesServed}`,
+  );
   console.log('\nSold by recipe:');
   for (const [id, n] of Object.entries(s.stats.soldByRecipe)) console.log(`  ${pad(RECIPES[id].name, 16)} ${n}`);
   console.log('\nStaff time:');

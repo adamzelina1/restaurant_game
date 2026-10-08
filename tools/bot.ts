@@ -7,19 +7,64 @@
 //                        hires when guests are being lost, and buys upgrades
 
 import { RECIPE_LIST, type BatchRecipe } from '../src/data/recipes';
-import type { Command } from '../src/sim/commands';
+import { applyCommand, type Command } from '../src/sim/commands';
 import { counterStock } from '../src/sim/counters/counters';
 import { guestRate } from '../src/sim/offline/offline';
 import { batchServings, canStartBatch } from '../src/sim/production/batches';
 import { nextTier, servingPrice, unlockError, upgradeError } from '../src/sim/progression/progression';
-import { SIGNING_HOURS } from '../src/sim/constants';
-import type { GameState, PlacedObject } from '../src/sim/state';
+import { DECOR_BONUS, DECOR_MAX, DECOR_RANGE, SIGNING_HOURS } from '../src/sim/constants';
+import { Floor, type GameState, type PlacedObject } from '../src/sim/state';
+import { stationDef } from '../src/data/stations';
+import { placementError } from '../src/sim/build/build';
+import { validateLayout } from '../src/sim/build/analysis';
 
 export type Strategy = 'short' | 'long' | 'best' | 'smart';
 
 /** Money the bot keeps back for ingredients and wages when buying things. */
 const RESERVE = 300;
 const MAX_STAFF = 6;
+
+/** Plants a bonus-hungry table can still use (each adds DECOR_BONUS up to DECOR_MAX). */
+const DECOR_PER_TABLE = Math.round(DECOR_MAX / DECOR_BONUS);
+/** Seconds between decor attempts (each one clones the state to validate the layout). */
+const DECOR_EVERY = 300;
+
+function decorNear(state: GameState, t: PlacedObject): number {
+  return Object.values(state.objects).filter(
+    (o) => stationDef(o.type).kind === 'decor' && Math.max(Math.abs(o.x - t.x), Math.abs(o.y - t.y)) <= DECOR_RANGE,
+  ).length;
+}
+
+/**
+ * Like a tidy player: put a plant where it reaches the most under-decorated
+ * tables, preferring spots against a wall so aisles stay open, and only if
+ * the layout stays valid.
+ */
+function decorCommand(state: GameState): Command | null {
+  const cost = stationDef('plant').cost;
+  if (state.money < cost + RESERVE * 3) return null;
+  const tables = Object.values(state.objects).filter((o) => o.table && decorNear(state, o) < DECOR_PER_TABLE);
+  if (tables.length === 0) return null;
+  const { width, height, floor } = state.grid;
+  const wallish = (x: number, y: number) =>
+    [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => floor[(y + dy) * width + (x + dx)] !== Floor.Open);
+  const spots: { x: number; y: number; score: number }[] = [];
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      if (floor[y * width + x] !== Floor.Open || !wallish(x, y)) continue;
+      const reach = tables.filter((t) => Math.max(Math.abs(x - t.x), Math.abs(y - t.y)) <= DECOR_RANGE).length;
+      if (reach > 0) spots.push({ x, y, score: reach });
+    }
+  }
+  spots.sort((a, b) => b.score - a.score);
+  for (const sp of spots.slice(0, 20)) {
+    if (placementError(state, 'plant', sp.x, sp.y, 0)) continue;
+    const trial = structuredClone(state);
+    applyCommand(trial, { type: 'buyObject', objectType: 'plant', x: sp.x, y: sp.y, rot: 0 });
+    if (validateLayout(trial).length === 0) return { type: 'buyObject', objectType: 'plant', x: sp.x, y: sp.y, rot: 0 };
+  }
+  return null;
+}
 
 function naiveRecipe(state: GameState, st: PlacedObject, strategy: Strategy): string | null {
   const options = RECIPE_LIST.filter((r) => r.station === st.type && !canStartBatch(state, st.id, r.id));
@@ -103,6 +148,10 @@ export function botCommands(state: GameState, strategy: Strategy): Command[] {
       .filter((x) => x.n && !upgradeError(state, x.o) && state.money > x.n.cost * 2 + RESERVE * 3)
       .sort((a, b) => a.n!.cost - b.n!.cost);
     if (ups.length) out.push({ type: 'upgradeObject', id: ups[0].o.id });
+    if (Math.round(state.time) % DECOR_EVERY === 0) {
+      const d = decorCommand(state);
+      if (d) out.push(d);
+    }
   }
   for (const o of Object.values(state.objects)) {
     if (!o.cook) continue;

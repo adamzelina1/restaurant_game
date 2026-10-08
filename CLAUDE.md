@@ -23,5 +23,7 @@ Build in milestone order (PLAN.md §12). M0–M8 are done; start with PLAN.md §
 - `npm run dev`: dev server on http://localhost:5173 (dev builds show 4×–64× speed buttons; `window.game` is the runner)
 - `npm test`: Vitest (sim tests + an architecture guard for `src/sim`)
 - `npm run typecheck`, `npm run build`
-- `npm run headless -- balance [hours] [short|long|best]`: bot-played balance report
+- `npm run headless -- balance [hours] [smart|short|long|best]`: bot-played balance report
+  (`smart`, the default, cooks to demand, hires, upgrades and places decor like a player)
+- `npm run headless -- offline [hours]`: compares the coarse offline model with the tick sim
 - `npm run headless -- stress [trials]`: blocking/deadlock stress test; `-- bench`: ticks/s

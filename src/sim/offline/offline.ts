@@ -13,6 +13,7 @@ import {
   OFFLINE_TICK_LIMIT,
   ORDER_TIME_PER_GUEST,
   PLATE_TIME,
+  PLATING_BONUS_MAX,
   SERVE_TIME,
   TICK_RATE,
 } from '../constants';
@@ -26,7 +27,7 @@ import { finishCooking, onCrateLoaded, putBatchOnCounter } from '../production/b
 import { dishAppeal, servingPrice } from '../progression/progression';
 import { rateVisit, reputationTrafficMult } from '../reputation/reputation';
 import { weightedPick } from '../rng';
-import { empWorkSpeed, qualityLevel } from '../skills';
+import { empWorkSpeed, qualityLevel, skillLevel } from '../skills';
 import { tickHiring } from '../staff/hiring';
 import { gainXp } from '../staff/xp';
 import type { Batch, Employee, GameState, Id, Skill, WorkType } from '../state';
@@ -217,13 +218,17 @@ function sell(state: GameState, dt: number, carry: Carry): void {
   carry.sold -= n;
   const r = state.rolling;
   const left = { ...avail };
+  // Online, quality is measured after the Plating presentation bonus; add the same here.
+  const platers = workers(state, 'Plate');
+  const plating = platers.length ? (PLATING_BONUS_MAX * platers.reduce((n, e) => n + skillLevel(e, 'Plating'), 0)) / platers.length / 20 : 0;
   for (let i = 0; i < n; i++) {
     const options = dishes.filter((d) => left[d] > 0);
     const dish = weightedPick(state, options, (d) => dishAppeal(state, d) * (0.5 + (stockQuality(state, d) ?? 0)));
     if (!dish) break;
     left[dish]--;
-    const q = takeServing(state, dish);
-    if (q === null) continue;
+    const taken = takeServing(state, dish);
+    if (taken === null) continue;
+    const q = clamp(taken + plating, 0, 1);
     const price = servingPrice(state, dish);
     // Guests feel the food's quality relative to what was measured online.
     const sat = clamp(r.satisfaction + 0.45 * (q - r.quality), 0, 1);
