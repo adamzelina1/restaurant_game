@@ -54,6 +54,9 @@ export class WorldScene extends Phaser.Scene {
   private hoverTile: { x: number; y: number } | null = null;
   /** The current press is with the left button. */
   private leftDown = false;
+  /** The player has panned or zoomed, so stop auto-fitting. */
+  private userCamera = false;
+  private fittedHud = -1;
 
   constructor(runner: GameRunner) {
     super('world');
@@ -69,15 +72,19 @@ export class WorldScene extends Phaser.Scene {
     this.heatG = this.add.graphics().setDepth(0.5);
     this.build = new BuildController(this.runner, this);
 
-    const s = this.runner.state;
     const cam = this.cameras.main;
     cam.setBackgroundColor('#15171b');
-    cam.centerOn((s.grid.width * TILE) / 2, (s.grid.height * TILE) / 2);
-    const fit = Math.min(this.scale.width / (s.grid.width * TILE + 64), this.scale.height / (s.grid.height * TILE + 160));
-    cam.setZoom(Phaser.Math.Clamp(fit, 0.5, 2));
+    this.fitCamera();
+    // Keep the restaurant framed as the window or HUD changes size, until the player takes over.
+    this.scale.on('resize', () => this.userCamera || this.fitCamera());
+    const unsub = ui.subscribe(() => {
+      if (ui.state.hudBottom !== this.fittedHud && !this.userCamera) this.fitCamera();
+    });
+    this.events.once('destroy', unsub);
 
     const kb = this.input.keyboard!;
     this.keys = kb.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT', false) as typeof this.keys;
+    kb.on('keydown-HOME', () => this.fitCamera());
 
     const tileAt = (p: Phaser.Input.Pointer) => {
       const wp = cam.getWorldPoint(p.x, p.y);
@@ -99,6 +106,7 @@ export class WorldScene extends Phaser.Scene {
       const dy = p.y - this.drag.y;
       if (!this.drag.moved && Math.hypot(dx, dy) > 6) this.drag.moved = true;
       if (this.drag.moved) {
+        this.userCamera = true;
         cam.scrollX = this.drag.sx - dx / cam.zoom;
         cam.scrollY = this.drag.sy - dy / cam.zoom;
       }
@@ -112,6 +120,7 @@ export class WorldScene extends Phaser.Scene {
       else this.handleClick(p);
     });
     this.input.on('wheel', (p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
+      this.userCamera = true;
       const before = cam.getWorldPoint(p.x, p.y);
       cam.setZoom(Phaser.Math.Clamp(cam.zoom * (dy > 0 ? 0.9 : 1.1), 0.4, 3));
       const after = cam.getWorldPoint(p.x, p.y);
@@ -119,6 +128,36 @@ export class WorldScene extends Phaser.Scene {
       cam.scrollY += before.y - after.y;
     });
     this.input.on('gameout', () => (this.hoverTile = null));
+  }
+
+  /** Frame the built floor in the part of the window below the HUD (Home key). */
+  fitCamera(): void {
+    const s = this.runner.state;
+    const cam = this.cameras.main;
+    const { width, height, floor } = s.grid;
+    let [x0, y0, x1, y1] = [width, height, -1, -1];
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        if (floor[y * width + x] === Floor.Void) continue;
+        x0 = Math.min(x0, x);
+        y0 = Math.min(y0, y);
+        x1 = Math.max(x1, x);
+        y1 = Math.max(y1, y);
+      }
+    }
+    if (x1 < 0) [x0, y0, x1, y1] = [0, 0, width - 1, height - 1];
+    const top = Math.min(ui.state.hudBottom, this.scale.height / 2);
+    const availW = this.scale.width;
+    const availH = this.scale.height - top;
+    const pad = 24;
+    const worldW = (x1 - x0 + 1) * TILE;
+    const worldH = (y1 - y0 + 1) * TILE;
+    const zoom = Phaser.Math.Clamp(Math.min((availW - 2 * pad) / worldW, (availH - 2 * pad) / worldH), 0.4, 2);
+    cam.setZoom(zoom);
+    // centerOn centres in the whole viewport; shift down by half the HUD so it centres below it.
+    cam.centerOn(x0 * TILE + worldW / 2, y0 * TILE + worldH / 2 - top / 2 / zoom);
+    this.fittedHud = ui.state.hudBottom;
+    this.userCamera = false;
   }
 
   private handleClick(p: Phaser.Input.Pointer): void {

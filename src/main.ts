@@ -51,7 +51,7 @@ function whenSized(el: HTMLElement, cb: () => void): void {
 
 const container = document.getElementById('game')!;
 whenSized(container, () => {
-  new Phaser.Game({
+  const phaser = new Phaser.Game({
     type: Phaser.AUTO,
     parent: container,
     backgroundColor: '#15171b',
@@ -60,6 +60,7 @@ whenSized(container, () => {
     disableContextMenu: true,
     scene: [new WorldScene(runner)],
   });
+  if (import.meta.env.DEV) (window as unknown as { phaser: Phaser.Game }).phaser = phaser;
 });
 
 render(h(App, { runner }), document.getElementById('ui')!);

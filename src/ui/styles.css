@@ -130,9 +130,15 @@ p {
   right: 8px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 6px 14px;
   padding: 6px 10px;
   flex-wrap: wrap;
+}
+.hud-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
 }
 .hud-money {
   font-size: 18px;
@@ -217,10 +223,10 @@ p {
 /* Side panel */
 .side {
   position: absolute;
-  top: 64px;
+  top: calc(var(--hud-bottom, 56px) + 8px);
   right: 8px;
-  width: 300px;
-  max-height: calc(100% - 80px);
+  width: min(300px, calc(100% - 16px));
+  max-height: calc(100% - var(--hud-bottom, 56px) - 16px);
   overflow-y: auto;
   padding: 10px 12px;
 }
@@ -380,7 +386,7 @@ table.recipes tr.disabled td {
 
 .paused-banner {
   position: absolute;
-  top: 70px;
+  top: calc(var(--hud-bottom, 56px) + 8px);
   left: 50%;
   transform: translateX(-50%);
   background: rgba(0, 0, 0, 0.6);
@@ -501,10 +507,10 @@ select.preset {
 /* Build mode */
 .build {
   position: absolute;
-  top: 64px;
+  top: calc(var(--hud-bottom, 56px) + 8px);
   left: 8px;
-  width: 280px;
-  max-height: calc(100% - 80px);
+  width: min(280px, calc(100% - 16px));
+  max-height: calc(100% - var(--hud-bottom, 56px) - 16px);
   overflow-y: auto;
   overflow-x: hidden;
   padding: 10px 12px;
@@ -631,4 +637,36 @@ label.check {
   align-items: center;
   gap: 6px;
   cursor: pointer;
+}
+
+/* Narrow windows: icon-only buttons, smaller money. */
+@media (max-width: 1400px) {
+  .hud .lbl {
+    display: none;
+  }
+  .hud-clock {
+    display: none;
+  }
+  .hud-money {
+    min-width: 0;
+    font-size: 16px;
+  }
+}
+@media (max-width: 600px) {
+  .hud {
+    top: 4px;
+    left: 4px;
+    right: 4px;
+    padding: 4px 6px;
+    gap: 4px 8px;
+  }
+  .hud-group {
+    gap: 4px;
+  }
+  .hud-heat .meter {
+    width: 40px;
+  }
+  .hud-speeds {
+    display: none;
+  }
 }

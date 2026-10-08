@@ -38,6 +38,8 @@ export interface UiState {
   overlay: Overlay;
   /** Welcome-back report to show, if any. */
   away: AwayReport | null;
+  /** Pixels from the top of the window to the bottom of the HUD (it wraps on narrow windows). */
+  hudBottom: number;
 }
 
 export const INITIAL_BUILD: BuildState = {
@@ -63,6 +65,7 @@ class UiStore {
     build: INITIAL_BUILD,
     overlay: 'none',
     away: null,
+    hudBottom: 56,
   };
   private listeners = new Set<() => void>();
 
