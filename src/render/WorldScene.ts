@@ -12,16 +12,30 @@ import { patienceUsed } from '../sim/foh/customers';
 import { clickObject } from '../ui/actions';
 import { BuildController } from './BuildMode';
 import { EventWatcher, type GameEvent } from './events';
+import { chair, shade, sprite } from './sprites';
 import { formatDuration, formatMoney } from '../ui/format';
 import { ui } from '../ui/store';
 import { play } from '../ui/sound';
 
 export const TILE = 32;
 
-const FLOOR_COLORS: Record<number, [number, number]> = {
-  [Floor.Open]: [0x6b5139, 0x654c35],
-  [Floor.Wall]: [0x1f2228, 0x1f2228],
-};
+const SKIN = [0xf1c27d, 0xe0ac69, 0xc68642, 0x8d5524, 0xffdbac, 0xa86b3c];
+const HAIR = [0x2b1d0e, 0x4a2c12, 0x8b5a2b, 0xd6b370, 0x1a1a1a, 0x9e4b25, 0x777777];
+const PLANK_TONES = [0x6b5139, 0x674e36, 0x70553c, 0x654b33, 0x6e5238];
+
+/** Stable per-id variation (skin, hair). */
+function hashStr(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+  return hash2(h, s.length);
+}
+
+/** Cheap stable hash for per-tile variation (render only, not game randomness). */
+function hash2(x: number, y: number): number {
+  let h = (x * 374761393 + y * 668265263) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0;
+  return (h ^ (h >>> 16)) >>> 0;
+}
 
 const TEXT_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
   fontFamily: 'system-ui, sans-serif',
@@ -68,6 +82,9 @@ export class WorldScene extends Phaser.Scene {
   private usedTexts = new Set<string>();
   private floats: FloatText[] = [];
   private bursts: Burst[] = [];
+  /** Last heading per agent, so people keep facing the same way when they stop. */
+  private facing = new Map<string, number>();
+  private objImages = new Map<string, Phaser.GameObjects.Image>();
   private watcher = new EventWatcher();
   private keys!: Record<'W' | 'A' | 'S' | 'D' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT', Phaser.Input.Keyboard.Key>;
   private drag: { x: number; y: number; sx: number; sy: number; moved: boolean } | null = null;
@@ -333,28 +350,83 @@ export class WorldScene extends Phaser.Scene {
     this.drawnLayout = s.layoutVersion;
     this.drawnGrid = s.grid;
     this.drawnBuild = this.build.active;
+    this.drawFloor(s);
+    const o = this.objG;
+    o.clear();
+    for (const img of this.objImages.values()) img.destroy();
+    this.objImages.clear();
+    for (const obj of Object.values(s.objects)) this.drawObject(obj);
+  }
+
+  private drawFloor(s: GameState): void {
     const g = this.floorG;
     g.clear();
     const { width, height, floor } = s.grid;
+    const at = (x: number, y: number) => (x < 0 || y < 0 || x >= width || y >= height ? Floor.Void : floor[y * width + x]);
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const f = floor[y * width + x];
-        const c = FLOOR_COLORS[f];
-        if (!c) {
+        const px = x * TILE;
+        const py = y * TILE;
+        if (f === Floor.Void) {
           // In build mode, show the empty lot you can buy.
           if (this.build.active) {
             g.lineStyle(1, 0x2c3038, 1);
-            g.strokeRect(x * TILE + 0.5, y * TILE + 0.5, TILE - 1, TILE - 1);
+            g.strokeRect(px + 0.5, py + 0.5, TILE - 1, TILE - 1);
           }
           continue;
         }
-        g.fillStyle(c[(x + y) % 2], 1);
-        g.fillRect(x * TILE, y * TILE, TILE, TILE);
+        if (f === Floor.Wall) {
+          g.fillStyle(0x23262c, 1);
+          g.fillRect(px, py, TILE, TILE);
+          // Lit edge where the wall meets the floor below it.
+          if (at(x, y + 1) === Floor.Open) {
+            g.fillStyle(0x3a3f49, 1);
+            g.fillRect(px, py + TILE - 6, TILE, 6);
+            g.fillStyle(0x4a505c, 1);
+            g.fillRect(px, py + TILE - 6, TILE, 1);
+          }
+          continue;
+        }
+        this.drawPlanks(g, x, y);
+        // Soft shadow cast by a wall above or to the left.
+        if (at(x, y - 1) === Floor.Wall) {
+          g.fillStyle(0x000000, 0.22);
+          g.fillRect(px, py, TILE, 5);
+        }
+        if (at(x - 1, y) === Floor.Wall) {
+          g.fillStyle(0x000000, 0.15);
+          g.fillRect(px, py, 4, TILE);
+        }
       }
     }
-    const o = this.objG;
-    o.clear();
-    for (const obj of Object.values(s.objects)) this.drawObject(obj);
+  }
+
+  /** Wooden planks two tiles long, four rows per tile, joints staggered row to row. */
+  private drawPlanks(g: Phaser.GameObjects.Graphics, x: number, y: number): void {
+    const PLANK = TILE / 4;
+    const LEN = TILE * 2;
+    for (let i = 0; i < 4; i++) {
+      const row = y * 4 + i;
+      const offset = hash2(row, 7) % LEN;
+      const py = y * TILE + i * PLANK;
+      // Split this tile's slice of the row at the plank joint, if there is one.
+      let px = x * TILE;
+      const end = px + TILE;
+      while (px < end) {
+        const seg = Math.floor((px + offset) / LEN);
+        const segEnd = Math.min(end, seg * LEN + LEN - offset);
+        g.fillStyle(PLANK_TONES[hash2(seg, row) % PLANK_TONES.length], 1);
+        g.fillRect(px, py, segEnd - px, PLANK);
+        if (segEnd < end) {
+          g.fillStyle(0x000000, 0.22);
+          g.fillRect(segEnd - 1, py, 1, PLANK - 1);
+        }
+        px = segEnd;
+      }
+      g.fillStyle(0x000000, 0.18);
+      g.fillRect(x * TILE, py + PLANK - 1, TILE, 1);
+    }
   }
 
   private drawObject(obj: PlacedObject): void {
@@ -363,51 +435,38 @@ export class WorldScene extends Phaser.Scene {
     const { w, h } = rotatedSize(obj.type, obj.rot);
     const px = obj.x * TILE;
     const py = obj.y * TILE;
-    if (def.kind === 'idle') {
-      g.lineStyle(1, def.color, 0.6);
-      g.strokeRect(px + 6, py + 6, TILE - 12, TILE - 12);
-      return;
-    }
-    if (def.kind === 'entrance') {
-      g.fillStyle(def.color, 0.35);
-      g.fillRect(px + 2, py + 2, TILE - 4, TILE - 4);
-      g.lineStyle(1, def.color, 0.9);
-      g.strokeRect(px + 2, py + 2, TILE - 4, TILE - 4);
-      return;
-    }
-    if (def.kind === 'decor') {
-      g.fillStyle(0x6d4c41, 1);
-      g.fillCircle(px + TILE / 2, py + TILE / 2 + 5, 7);
-      g.fillStyle(def.color, 1);
-      g.fillCircle(px + TILE / 2 - 4, py + TILE / 2 - 3, 7);
-      g.fillCircle(px + TILE / 2 + 4, py + TILE / 2 - 3, 7);
-      g.fillCircle(px + TILE / 2, py + TILE / 2 - 8, 7);
-      return;
-    }
     // Chairs around tables.
-    for (const st of seatTiles(obj)) {
-      g.fillStyle(0x5d4037, 1);
-      g.fillRoundedRect(st.x * TILE + 8, st.y * TILE + 8, TILE - 16, TILE - 16, 3);
+    if (def.seats) {
+      const tcx = px + (w * TILE) / 2;
+      const tcy = py + (h * TILE) / 2;
+      for (const st of seatTiles(obj)) {
+        const ax = Math.sign(tcx - (st.x * TILE + TILE / 2));
+        const ay = ax === 0 ? Math.sign(tcy - (st.y * TILE + TILE / 2)) : 0;
+        chair(g, st.x * TILE, st.y * TILE, ax, ay);
+      }
     }
-    g.fillStyle(0x000000, 0.35);
-    g.fillRoundedRect(px + 3, py + 4, w * TILE - 4, h * TILE - 4, 5);
-    g.fillStyle(def.color, 1);
-    g.fillRoundedRect(px + 2, py + 2, w * TILE - 4, h * TILE - 4, 5);
-    g.lineStyle(1, 0x000000, 0.5);
-    g.strokeRoundedRect(px + 2, py + 2, w * TILE - 4, h * TILE - 4, 5);
-    if (def.work.length === 0) return;
-    // Facing notch toward the work tile.
-    const wt = workTile(obj);
-    const cx = px + (w * TILE) / 2;
-    const cy = py + (h * TILE) / 2;
-    const nx = cx + Math.sign(wt.x * TILE + TILE / 2 - cx) * (w * TILE * 0.5 - 4);
-    const ny = cy + Math.sign(wt.y * TILE + TILE / 2 - cy) * (h * TILE * 0.5 - 4);
-    g.fillStyle(0xffffff, 0.5);
-    g.fillCircle(nx, ny, 2);
+    if (this.textures.exists(def.sprite)) {
+      // An asset pack supplied this sprite: art faces south at rotation 0.
+      const img = this.add.image(px + (w * TILE) / 2, py + (h * TILE) / 2, def.sprite).setDepth(1);
+      img.setDisplaySize(stationDef(obj.type).w * TILE, stationDef(obj.type).h * TILE).setAngle(obj.rot * 90);
+      this.objImages.set(obj.id, img);
+    } else {
+      let fx = 0;
+      let fy = 1;
+      if (def.work.length > 0) {
+        const wt = workTile(obj);
+        fx = Math.sign(wt.x * TILE + TILE / 2 - (px + (w * TILE) / 2));
+        fy = Math.sign(wt.y * TILE + TILE / 2 - (py + (h * TILE) / 2));
+        if (fx !== 0 && fy !== 0) fx = 0;
+      }
+      sprite(def.sprite)(g, { x: px, y: py, w: w * TILE, h: h * TILE, fx, fy, color: def.color });
+    }
     // Equipment tier pips along the bottom edge.
     for (let i = 1; i < obj.tier; i++) {
+      g.fillStyle(0x000000, 0.6);
+      g.fillRect(px + w * TILE - 8 - (i - 1) * 5, py + h * TILE - 9, 5, 5);
       g.fillStyle(0xffd966, 1);
-      g.fillRect(px + w * TILE - 6 - (i - 1) * 5, py + h * TILE - 7, 3, 3);
+      g.fillRect(px + w * TILE - 7 - (i - 1) * 5, py + h * TILE - 8, 3, 3);
     }
   }
 
@@ -417,6 +476,9 @@ export class WorldScene extends Phaser.Scene {
     const top = this.topG;
     top.clear();
     const now = this.time.now / 1000;
+    const hoverObj = this.hoverTile && !this.drag?.moved ? objectAtTile(s, this.hoverTile.x, this.hoverTile.y) : null;
+    const hoverId = hoverObj?.id ?? null;
+    const selId = ui.state.selected?.kind === 'object' ? ui.state.selected.id : null;
 
     for (const obj of Object.values(s.objects)) {
       const def = stationDef(obj.type);
@@ -424,7 +486,7 @@ export class WorldScene extends Phaser.Scene {
       const cx = obj.x * TILE + (w * TILE) / 2;
       const cy = obj.y * TILE + (h * TILE) / 2;
 
-      if (def.label && def.kind !== 'counter') {
+      if (def.label && def.kind !== 'counter' && (this.build.active || obj.id === hoverId || obj.id === selId)) {
         this.label(`lbl:${obj.id}`, cx, cy, def.label, { fontSize: '9px', color: '#00000099', fontStyle: 'bold' });
       }
 
@@ -447,6 +509,8 @@ export class WorldScene extends Phaser.Scene {
           g.fillRect(cx - 14, cy + 9, 28 * p, 4);
           this.label(`st:${obj.id}`, cx, labelY, `${b.cratesLoaded}/${b.crates.length}`, { backgroundColor: '#000000aa', padding: { x: 2, y: 1 } });
         } else if (b.phase === 'cooking') {
+          g.fillStyle(0xff7f00, 0.12 + 0.06 * Math.sin(now * 9 + obj.x));
+          g.fillCircle(cx, cy, 15);
           g.lineStyle(3, 0x000000, 0.5);
           g.strokeCircle(cx, cy, 13);
           g.lineStyle(3, 0xf6b26b, 1);
@@ -625,22 +689,13 @@ export class WorldScene extends Phaser.Scene {
     const g = this.agentG;
     g.clear();
     const sel = ui.state.selected;
+    // Guests come and go; forget old headings now and then.
+    if (this.facing.size > 400) this.facing.clear();
     for (const e of Object.values(s.employees)) {
       const { x, y } = this.agentPos(e);
-      g.fillStyle(0x000000, 0.3);
-      g.fillEllipse(x, y + 9, 18, 6);
-      g.fillStyle(e.color, 1);
-      g.fillCircle(x, y, 10);
       const selected = sel?.kind === 'employee' && sel.id === e.id;
-      const outline = e.activity === 'blocked' ? 0xe06666 : selected ? 0xffd966 : 0x111111;
-      g.lineStyle(selected || e.activity === 'blocked' ? 2 : 1, outline, 1);
-      g.strokeCircle(x, y, 10);
-      // Face: a dot showing which way they're heading.
-      if (e.step) {
-        const a = Math.atan2(e.step.ty - e.y, e.step.tx - e.x);
-        g.fillStyle(0xffffff, 0.9);
-        g.fillCircle(x + Math.cos(a) * 6, y + Math.sin(a) * 6, 2);
-      }
+      const ring = e.activity === 'blocked' ? 0xe06666 : selected ? 0xffd966 : null;
+      this.drawPerson(g, e, x, y, 10, e.color, ring, 'hat');
       if (e.carrying?.kind === 'crate') {
         const c = s.crates[e.carrying.id];
         if (c) this.drawCrate(g, x + 9, y - 7, c.ingredient, c.prepped);
@@ -657,6 +712,55 @@ export class WorldScene extends Phaser.Scene {
     this.drawCustomers(s);
   }
 
+  /** Top-down person: body in their colour, hands, and a head turned the way they're heading. */
+  private drawPerson(g: Phaser.GameObjects.Graphics, m: Mover & { id: string }, x: number, y: number, r: number, color: number, ring: number | null, top: 'hat' | 'hair'): void {
+    let a = this.facing.get(m.id) ?? Math.PI / 2;
+    if (m.step) {
+      a = Math.atan2(m.step.ty - m.y, m.step.tx - m.x);
+      this.facing.set(m.id, a);
+    }
+    const fx = Math.cos(a);
+    const fy = Math.sin(a);
+    const h = hashStr(m.id);
+    const skin = SKIN[h % SKIN.length];
+    g.fillStyle(0x000000, 0.28);
+    g.fillEllipse(x, y + r * 0.85, r * 1.9, r * 0.6);
+    // Hands, a little ahead of the shoulders.
+    g.fillStyle(skin, 1);
+    g.fillCircle(x + fx * r * 0.45 - fy * r * 0.85, y + fy * r * 0.45 + fx * r * 0.85, r * 0.22);
+    g.fillCircle(x + fx * r * 0.45 + fy * r * 0.85, y + fy * r * 0.45 - fx * r * 0.85, r * 0.22);
+    g.fillStyle(shade(color, -0.35), 1);
+    g.fillCircle(x, y, r);
+    g.fillStyle(color, 1);
+    g.fillCircle(x - r * 0.08, y - r * 0.1, r * 0.88);
+    if (ring !== null) {
+      g.lineStyle(2, ring, 1);
+      g.strokeCircle(x, y, r + 1.5);
+    }
+    // Head, nudged toward the way they face.
+    const hx = x + fx * r * 0.2;
+    const hy = y + fy * r * 0.2 - r * 0.05;
+    g.fillStyle(0x000000, 0.25);
+    g.fillCircle(hx + 0.5, hy + 1, r * 0.62);
+    g.fillStyle(skin, 1);
+    g.fillCircle(hx, hy, r * 0.6);
+    // From above you mostly see the top of the head; the face peeks out in front.
+    const bx = hx - fx * r * 0.14;
+    const by = hy - fy * r * 0.14;
+    if (top === 'hat') {
+      g.fillStyle(0xd9d9d9, 1);
+      g.fillCircle(bx, by, r * 0.55);
+      g.fillStyle(0xffffff, 1);
+      g.fillCircle(bx - r * 0.08, by - r * 0.1, r * 0.4);
+    } else {
+      const hair = HAIR[(h >> 4) % HAIR.length];
+      g.fillStyle(hair, 1);
+      g.fillCircle(bx, by, r * 0.55);
+      g.fillStyle(shade(hair, 0.25), 1);
+      g.fillCircle(bx - r * 0.15, by - r * 0.18, r * 0.2);
+    }
+  }
+
   private drawCustomers(s: GameState): void {
     const g = this.agentG;
     const sel = ui.state.selected;
@@ -664,14 +768,9 @@ export class WorldScene extends Phaser.Scene {
       const p = s.parties[c.partyId];
       if (!p) continue;
       const { x, y } = this.agentPos(c);
-      g.fillStyle(0x000000, 0.25);
-      g.fillEllipse(x, y + 7, 14, 5);
-      g.fillStyle(p.color, 1);
-      g.fillCircle(x, y, 7.5);
       const selected = sel?.kind === 'customer' && sel.id === c.id;
       const angry = p.angry;
-      g.lineStyle(selected ? 2 : 1.5, selected ? 0xffd966 : angry ? 0xe06666 : 0xffffff, selected ? 1 : 0.8);
-      g.strokeCircle(x, y, 7.5);
+      this.drawPerson(g, c, x, y, 7.5, p.color, selected ? 0xffd966 : angry ? 0xe06666 : null, 'hair');
       // Food on the table in front of them.
       if (c.plate?.at === 'table' && p.tableId) {
         const t = s.objects[p.tableId];
